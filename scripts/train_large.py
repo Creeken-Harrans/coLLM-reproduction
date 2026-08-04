@@ -26,10 +26,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--subset", default="FD001", choices=["FD001", "FD003"])
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--seed", type=int, default=None, help="训练 seed（默认 cfg.seed=42；数据划分保持 42）")
     args = ap.parse_args()
 
     cfg = get_config(args.subset)
-    set_seed(cfg.seed)
+    set_seed(args.seed if args.seed is not None else cfg.seed)
     device = args.device if torch.cuda.is_available() else "cpu"
     tr_ds, val_ds, te_ds, stats = prepare_cmapss(cfg.data, args.subset, cfg.seed)
     log = setup_logger("stage2", args.subset)

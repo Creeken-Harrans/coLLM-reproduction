@@ -431,3 +431,21 @@ SM 的 test 最优 13.82（划分 seed 42）< 历史 small.pt 13.50（划分 see
   （BANjian16 14.66）同证
 - 子代理反向审查：三阶段冻结/数据流/评估链路无影响指标的 bug（诊断脚本
   diagnose.py 需修、--fixed 日志与权重不对应等小问题已记录）
+
+## 44. 代码整理 + 清空结果完整重训（终局，2026-08-04）
+
+- **代码整理**：config 定稿集中化（get_config per-subset：SM 8/6 层、LM 9/12 层、
+  α 4/5、stats/mean）；models 移除全部实验分支（CI/concat/instance_norm/
+  input_norm/pad/flatten/cat_pred/LN 选项）；scripts 参数精简（仅 --subset/
+  --device，配置自动加载）；新增 run_pipeline.sh 一键流程；预处理落盘
+  data/processed（npz + meta json）
+- **完整重训**（清空 outputs 后从零训练）：FD001 SM 13.515（两次一致）、
+  LM 14.309（与定稿逐位一致——确定性确认）；FD003 SM 5 seeds val-best
+  11.16、LM 5 seeds val-best（seed 123，val 12.005/test 12.915）
+- **重训最终结果**：FD001 A 12.732/B 12.788/C 12.750；FD003 A 11.153/
+  B 11.067/C 11.022（全超论文 ✓）
+- **SM 单 seed 方差教训**：FD003 SM 单 seed 11.78 vs 5 seeds val-best 11.16
+  （±0.6）——多 seed val-best 是必要的防运气策略（REVISIONS #10 延续）
+- **LM 训练确定性**：seed 固定 + num_workers=2 下 FD001 重训与定稿逐位一致
+  （14.309）——之前记录的 ±0.2 波动来自代码演进而非随机性
+- **flops.py 整理遗留修复**（cat_pred 引用）、plot_results.py Config 注解修复

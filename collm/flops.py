@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 
 
-def module_flops(model: nn.Module, x: torch.Tensor, extra=None) -> float:
+def module_flops(model: nn.Module, x: torch.Tensor) -> float:
     """对给定输入计算模型总 FLOPs（x 含 batch 维，按 batch=1 折算）。"""
     total = 0.0
     hooks = []
@@ -52,7 +52,7 @@ def module_flops(model: nn.Module, x: torch.Tensor, extra=None) -> float:
         hooks.append(h)
 
     with torch.no_grad():
-        model(x, extra) if extra is not None else model(x)
+        model(x)
 
     for h in hooks:
         h.remove()
@@ -66,11 +66,11 @@ def collm_flops(module, x: torch.Tensor) -> dict:
     out = {}
     with torch.no_grad():
         out["small"] = module_flops(module.small, x)
-        ys, feat_s = module.small(x)
-        out["fuzzy"] = module_flops(module.fuzzy, feat_s, ys if module.cfg.fuzzy.cat_pred else None)
+        _, feat_s = module.small(x)
+        out["fuzzy"] = module_flops(module.fuzzy, feat_s)
         out["large"] = module_flops(module.large, x)
-        yl, feat_l = module.large(x)
-        out["reflection"] = module_flops(module.reflection, feat_l, yl if module.cfg.reflection.cat_pred else None)
+        _, feat_l = module.large(x)
+        out["reflection"] = module_flops(module.reflection, feat_l)
     return out
 
 

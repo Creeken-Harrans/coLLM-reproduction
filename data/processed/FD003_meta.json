@@ -1,0 +1,10 @@
+{
+ "subset": "FD003",
+ "train_windows": 15907,
+ "val_windows": 3913,
+ "test_windows": 11717,
+ "train_units": 80,
+ "val_units": 20,
+ "test_units": 100,
+ "test_engines": 100
+}

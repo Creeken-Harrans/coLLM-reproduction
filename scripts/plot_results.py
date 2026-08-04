@@ -46,7 +46,7 @@ C_ERR2 = "#e9a34d"
 LW_TRUE, LW_PRED = 1.8, 1.2
 
 
-def load_engine_windows(subset: str, engine_idx: int, cfg: Config, stats=None):
+def load_engine_windows(subset: str, engine_idx: int, cfg, stats=None):
     """返回该发动机所有窗口的 (x, y_true)，x: (n, 50, 14)。
 
     stats: prepare_cmapss 的 (mu, sigma)——与正式评估管线完全一致的统计量
@@ -74,7 +74,7 @@ def load_engine_windows(subset: str, engine_idx: int, cfg: Config, stats=None):
     return x_w, y_true
 
 
-def _pick_engines(subset: str, cfg: Config, want: int = 4, min_len: int = 120):
+def _pick_engines(subset: str, cfg, want: int = 4, min_len: int = 120):
     """从测试集中挑选窗口数 ≥ min_len 的发动机（论文图 3/6 显示 ~160 时间步）。"""
     import numpy as np
     from collm.data import _load_raw, _extract_sensors, _unit_blocks, _build_windows
@@ -92,7 +92,7 @@ def _pick_engines(subset: str, cfg: Config, want: int = 4, min_len: int = 120):
     return picks
 
 
-def plot_fig3_6(model: CoLLM, subset: str, cfg: Config, device: str, out_dir: Path,
+def plot_fig3_6(model: CoLLM, subset: str, cfg, device: str, out_dir: Path,
                 stats=None):
     engines = _pick_engines(subset, cfg)
     print(f"选中发动机（0-based，长序列）: {engines}")
@@ -155,7 +155,7 @@ def plot_fig3_6(model: CoLLM, subset: str, cfg: Config, device: str, out_dir: Pa
     print(f"图3/图6 已保存 → {out_dir}")
 
 
-def plot_fig4(model: CoLLM, subset: str, cfg: Config, device: str, out_dir: Path,
+def plot_fig4(model: CoLLM, subset: str, cfg, device: str, out_dir: Path,
               tau1: float = 0.9, tau2: float = 0.05, stats=None):
     """图4：自反思可视化——真实 RUL、SM/LM 预测 + Error(LM−SM) 柱状图。
 
