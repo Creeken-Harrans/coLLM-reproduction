@@ -74,63 +74,68 @@ def load_engine_windows(subset: str, engine_idx: int, cfg, stats=None):
     return x_w, y_true
 
 
-def _pick_engines(subset: str, cfg, want: int = 4, min_len: int = 120):
-    """从测试集中挑选窗口数 ≥ min_len 的发动机（论文图 3/6 显示 ~160 时间步）。"""
+def _pick_engines(subset: str, cfg, want: int = 4, min_len: int = 90):
+    """选择展示发动机：优先论文图 3/6 指定的编号（FD001 #32/#34、FD003 #23/#40，
+    1-based → 0-based），不足时退回长序列发动机。"""
     import numpy as np
     from collm.data import _load_raw, _extract_sensors, _unit_blocks, _build_windows
     te = _load_raw(cfg.data.data_dir, "test", subset)
-    sens = _extract_sensors(te)
     units = te[:, 0].astype(np.int64)
-    cycles = te[:, 1].astype(np.int64)
-    blocks = _unit_blocks(units, cycles)
-    picks = []
+    blocks = _unit_blocks(units, te[:, 1].astype(np.int64))
+    paper_idx = {"FD001": [31, 33], "FD003": [22, 39]}   # 论文图 3/6 编号（0-based）
+    picks = [i for i in paper_idx.get(subset, []) if i < len(blocks)
+             and len(blocks[i][1]) >= min_len + cfg.data.window]
+    # 论文编号不足时补充长序列发动机
     for i, b in enumerate(blocks):
-        if len(b[1]) >= min_len + cfg.data.window:
-            picks.append(i)
         if len(picks) >= want:
             break
-    return picks
+        if i not in picks and len(b[1]) >= min_len + cfg.data.window:
+            picks.append(i)
+    return picks[:want]
 
 
-def plot_fig3_6(model: CoLLM, subset: str, cfg, device: str, out_dir: Path,
-                stats=None):
-    engines = _pick_engines(subset, cfg)
-    print(f"选中发动机（0-based，长序列）: {engines}")
-    # 布局：2×2 发动机网格，每格上下双面板（曲线 + 柱状），画布加大防拥挤
+def plot_fig3_6(models: dict, cfgs: dict, device: str, out_dir: Path):
+    """图3/图6（论文布局）：4 面板 = (a)FD001 #32 (b)FD001 #34 (c)FD003 #23 (d)FD003 #40。
+
+    图3 每面板：上=RUL 曲线（真实黑、SM 蓝、LM 绿——论文 Fig.6 配色），
+              下=绿色不确定性柱（FNN 1−Qs）+ 灰色 SM 真实误差柱（论文 Fig.3 原文）。
+    图6 每面板：上=曲线，下=灰色 LM 误差柱 + 蓝色 SM 误差柱（论文 Fig.6 原文）。
+    """
+    panels = [("FD001", 31), ("FD001", 33), ("FD003", 22), ("FD003", 39)]
     fig3 = plt.figure(figsize=(15, 11.5))
-    sub3 = fig3.subfigures(2, 2, hspace=0.32, wspace=0.10)
+    sub3 = fig3.subfigures(2, 2, hspace=0.30, wspace=0.10)
     fig6 = plt.figure(figsize=(15, 11.5))
-    sub6 = fig6.subfigures(2, 2, hspace=0.32, wspace=0.10)
-    for k, ei in enumerate(engines):
-        x, yt = load_engine_windows(subset, ei, cfg, stats)
+    sub6 = fig6.subfigures(2, 2, hspace=0.30, wspace=0.10)
+    for k, (sub, ei) in enumerate(panels):
+        cfg = cfgs[sub]; model = models[sub]
+        _, _, _, stats = prepare_cmapss(cfg.data, sub, cfg.seed)
+        x, yt = load_engine_windows(sub, ei, cfg, stats)
         x = torch.as_tensor(x, dtype=torch.float32, device=device)
         with torch.no_grad():
             ys, fs = model.small(x)
             yl, fl = model.large(x)
             qs = model.fuzzy(fs)
-            ql = model.reflection(fl)
-        ys, yl, qs, ql, yt = [v.cpu().numpy() for v in (ys, yl, qs, ql)] + [yt]
+        ys, yl, qs, yt = [v.cpu().numpy() for v in (ys, yl, qs)] + [yt]
         err_s, err_l = np.abs(ys - yt), np.abs(yl - yt)
         t = np.arange(len(yt))
-        unc = 1 - qs   # 模型不确定性（FNN 置信度取反，对齐图 3 绿柱）
+        unc = 1 - qs   # 模型不确定性（论文图 3 绿柱）
 
-        # ---- 图 3：RUL 曲线 + FNN 不确定性 vs SM 真实误差 ----
+        # ---- 图 3 ----
         sf = sub3.flat[k]
         ax1 = sf.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [2, 1],
                                                           "hspace": 0.08})
         ax1[0].plot(t, yt, color=C_TRUE, lw=LW_TRUE, label="真实 RUL")
         ax1[0].plot(t, ys, color=C_SM, lw=LW_PRED, label="SM 预测")
-        ax1[0].plot(t, yl, color=C_LM, lw=LW_PRED, label="LM 预测")
+        ax1[0].plot(t, yl, color="#2a9d8f", lw=LW_PRED, label="LM 预测")
         ax1[0].set_ylabel("RUL")
         ax1[0].legend(fontsize=7.5, ncol=3, loc="upper right")
-        ax1[0].set_title(f"发动机 #{ei+1}", fontsize=10, pad=4)
-        # 柱状图：窄柱无描边，降低拥挤感
-        ax1[1].bar(t, unc, color=C_UNC, alpha=0.7, width=0.7, label="FNN 不确定性 (1−Qs)")
+        ax1[0].set_title(f"({chr(97+k)}) {sub} 发动机 #{ei+1}", fontsize=10, pad=4)
+        ax1[1].bar(t, unc, color=C_UNC, alpha=0.7, width=0.7, label="模型不确定性 (1−Qs)")
         ax1[1].bar(t, err_s, color=C_ERR, alpha=0.5, width=0.7, label="SM 真实误差")
         ax1[1].set_ylabel("数值"); ax1[1].set_xlabel("时间步")
         ax1[1].legend(fontsize=7.5, ncol=2, loc="upper left")
 
-        # ---- 图 6：RUL 曲线 + 误差柱（灰=LM、橙=SM）----
+        # ---- 图 6 ----
         sf6 = sub6.flat[k]
         ax2 = sf6.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [2, 1],
                                                           "hspace": 0.08})
@@ -139,60 +144,67 @@ def plot_fig3_6(model: CoLLM, subset: str, cfg, device: str, out_dir: Path,
         ax2[0].plot(t, yl, color="#2a9d8f", lw=LW_PRED, label="LM 预测")
         ax2[0].set_ylabel("RUL")
         ax2[0].legend(fontsize=7.5, ncol=3, loc="upper right")
-        ax2[0].set_title(f"发动机 #{ei+1}", fontsize=10, pad=4)
+        ax2[0].set_title(f"({chr(97+k)}) {sub} 发动机 #{ei+1}", fontsize=10, pad=4)
         ax2[1].bar(t, err_l, color=C_ERR, alpha=0.55, width=0.7, label="LM 误差")
-        ax2[1].bar(t, err_s, color=C_LM, alpha=0.5, width=0.7, label="SM 误差")
+        ax2[1].bar(t, err_s, color=C_SM, alpha=0.5, width=0.7, label="SM 误差")
         ax2[1].set_ylabel("误差"); ax2[1].set_xlabel("时间步")
         ax2[1].legend(fontsize=7.5, ncol=2, loc="upper left")
-    fig3.suptitle(f"图3 RUL 预测结果可视化（{subset}，上方曲线 / 下方 FNN 不确定性与 SM 真实误差）",
+    fig3.suptitle("图3 RUL 预测结果可视化（上：预测曲线 / 下：FNN 不确定性与 SM 真实误差）",
                   fontsize=12, y=0.99)
-    fig6.suptitle(f"图6 大模型与小模型的 RUL 预测及误差比较（{subset}）",
+    fig6.suptitle("图6 大模型与小模型的 RUL 预测及误差比较",
                   fontsize=12, y=0.99)
     fig3.tight_layout(rect=[0, 0, 1, 0.97]); fig6.tight_layout(rect=[0, 0, 1, 0.97])
-    fig3.savefig(out_dir / f"{subset}_fig3_rul_uncertainty.png")
-    fig6.savefig(out_dir / f"{subset}_fig6_lm_vs_sm.png")
+    fig3.savefig(out_dir / "fig3_rul_uncertainty.png")
+    fig6.savefig(out_dir / "fig6_lm_vs_sm.png")
     plt.close(fig3); plt.close(fig6)
-    print(f"图3/图6 已保存 → {out_dir}")
+    print("图3/图6 已保存（论文布局：FD001 #32/#34 + FD003 #23/#40）")
 
 
-def plot_fig4(model: CoLLM, subset: str, cfg, device: str, out_dir: Path,
-              tau1: float = 0.9, tau2: float = 0.05, stats=None):
-    """图4：自反思可视化——真实 RUL、SM/LM 预测 + Error(LM−SM) 柱状图。
+def plot_fig4(models: dict, cfgs: dict, device: str, out_dir: Path):
+    """图4（论文布局）：(a) 阈值 [0.9,0.05] (b) [0.6,0.05]（表 III 消融阈值）。
 
-    红柱 = LM 误差 > SM 误差（自反思应触发融合）；蓝柱 = LM 更优。
-    采用表 III 的阈值 [0.9, 0.05] 以突出反思样本。
+    上=真实 RUL + SM/LM 预测；下=Error(LM−SM) 柱状图：
+    红柱 = LM 误差 > SM 误差（自反思触发融合的样本），蓝柱 = LM 更优。
+    展示发动机：FD001 #34（论文图 6 中 SM/LM 差异显著的案例）。
     """
-    engine = _pick_engines(subset, cfg, want=1)[0]  # 用长序列发动机展示
-    x, yt = load_engine_windows(subset, engine, cfg, stats)
+    sub, ei = "FD001", 33   # 论文图 6 分析案例（SM 早期更准 / LM 后期更稳）
+    cfg = cfgs[sub]; model = models[sub]
+    _, _, _, stats = prepare_cmapss(cfg.data, sub, cfg.seed)
+    x, yt = load_engine_windows(sub, ei, cfg, stats)
     x = torch.as_tensor(x, dtype=torch.float32, device=device)
     with torch.no_grad():
         ys, fs = model.small(x)
         yl, fl = model.large(x)
         qs, ql = model.fuzzy(fs), model.reflection(fl)
     ys, yl, qs, ql, yt = [v.cpu().numpy() for v in (ys, yl, qs, ql)] + [yt]
-
     err_s, err_l = np.abs(ys - yt), np.abs(yl - yt)
-    delta = qs - ql
-    reflect = (qs < tau1) & (delta > tau2)   # 触发自反思融合的样本
     t = np.arange(len(yt))
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 7), sharex=True,
-                                   gridspec_kw={"height_ratios": [2.2, 1]})
-    ax1.plot(t, yt, color=C_TRUE, lw=LW_TRUE, label="真实 RUL")
-    ax1.plot(t, ys, color=C_SM, lw=LW_PRED, label="SM 预测")
-    ax1.plot(t, yl, color=C_LM, lw=LW_PRED, label="LM 预测")
-    ax1.scatter(t[reflect], ys[reflect], c="#d62828", s=18, zorder=5,
-                label=f"自反思触发({reflect.sum()} 个)")
-    ax1.set_ylabel("RUL"); ax1.legend(fontsize=8); ax1.set_title(f"图4 自反思（{subset} #{engine+1}，阈值 [{tau1},{tau2}]）")
-
-    colors = np.where(err_l > err_s, "#d1495b", "#2f6db3")   # 红=LM 更差，蓝=LM 更优
-    ax2.bar(t, err_l - err_s, color=colors, width=0.9)
-    ax2.axhline(0, color=C_TRUE, lw=0.8)
-    ax2.set_xlabel("时间步"); ax2.set_ylabel("Error(LM−SM)")
-    fig.tight_layout()
-    fig.savefig(out_dir / f"{subset}_fig4_self_reflection.png")
+    fig, axes = plt.subplots(2, 2, figsize=(13, 8), sharex=True,
+                             gridspec_kw={"width_ratios": [2.2, 1], "hspace": 0.35,
+                                          "wspace": 0.18})
+    for col, (tau1, tau2) in enumerate([(0.9, 0.05), (0.6, 0.05)]):
+        delta = qs - ql
+        reflect = (qs < tau1) & (delta > tau2)   # 触发自反思融合的样本
+        ax1, ax2 = axes[:, col]
+        ax1.plot(t, yt, color=C_TRUE, lw=LW_TRUE, label="真实 RUL")
+        ax1.plot(t, ys, color=C_SM, lw=LW_PRED, label="SM 预测")
+        ax1.plot(t, yl, color="#2a9d8f", lw=LW_PRED, label="LM 预测")
+        ax1.scatter(t[reflect], ys[reflect], c="#d62828", s=16, zorder=5,
+                    label=f"自反思触发 ({reflect.sum()})")
+        ax1.set_ylabel("RUL")
+        ax1.legend(fontsize=7.5)
+        ax1.set_title(f"({chr(97+col)}) 阈值 [{tau1}, {tau2}]", fontsize=10)
+        colors = np.where(err_l > err_s, "#d1495b", "#2f6db3")   # 红=LM 更差，蓝=LM 更优
+        ax2.bar(t, err_l - err_s, color=colors, width=0.9)
+        ax2.axhline(0, color=C_TRUE, lw=0.8)
+        ax2.set_xlabel("时间步"); ax2.set_ylabel("Error(LM−SM)")
+    fig.suptitle(f"图4 自反思机制（{sub} 发动机 #{ei+1}，红柱=LM 误差更大→SM 辅助融合）",
+                 fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.savefig(out_dir / "fig4_self_reflection.png")
     plt.close(fig)
-    print(f"图4 已保存 → {out_dir}（反思触发 {reflect.sum()} 样本）")
+    print("图4 已保存（双阈值 (a)[0.9,0.05] (b)[0.6,0.05]）")
 
 
 def plot_fig5(model: CoLLM, te_ld: DataLoader, device: str, out_dir: Path, subset: str):
@@ -237,29 +249,35 @@ def plot_fig5(model: CoLLM, te_ld: DataLoader, device: str, out_dir: Path, subse
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--subset", default="FD001", choices=["FD001", "FD003"])
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
 
-    cfg = get_config(args.subset)
-
     device = args.device if torch.cuda.is_available() else "cpu"
-    ckpt = Path(cfg.out_dir) / "checkpoints" / args.subset
-    model = CoLLM(cfg).to(device).eval()
-    for part, name in [("small", "small"), ("large", "large"),
-                       ("fuzzy", "fuzzy"), ("reflection", "reflection")]:
-        model.__getattr__(part).load_state_dict(
-            torch.load(ckpt / f"{name}.pt", map_location=device))
-
-    out_dir = Path(cfg.out_dir) / "figures"
+    out_dir = Path("outputs") / "figures"
     out_dir.mkdir(parents=True, exist_ok=True)
-    # 标准化统计量一次性获取（与正式评估管线一致，供图 3/4/6 复用）
-    _, _, te_ds, stats = prepare_cmapss(cfg.data, args.subset, cfg.seed)
-    plot_fig3_6(model, args.subset, cfg, device, out_dir, stats)
-    plot_fig4(model, args.subset, cfg, device, out_dir, stats=stats)
-    te_ld = DataLoader(te_ds, batch_size=512, shuffle=False)
-    plot_fig5(model, te_ld, device, out_dir, args.subset)
-    print("全部图表完成")
+
+    # 加载两个数据集的模型（图 3/6 面板跨数据集）
+    models, cfgs = {}, {}
+    for sub in ("FD001", "FD003"):
+        cfg = get_config(sub)
+        model = CoLLM(cfg).to(device).eval()
+        ckpt = Path(cfg.out_dir) / "checkpoints" / sub
+        for part, name in [("small", "small"), ("large", "large"),
+                           ("fuzzy", "fuzzy"), ("reflection", "reflection")]:
+            model.__getattr__(part).load_state_dict(
+                torch.load(ckpt / f"{name}.pt", map_location=device))
+        models[sub] = model
+        cfgs[sub] = cfg
+
+    plot_fig3_6(models, cfgs, device, out_dir)
+    plot_fig4(models, cfgs, device, out_dir)
+    # 图5：SM/LM 置信度分箱（橙柱+蓝虚线，论文 Fig.5）——两数据集分两张
+    for sub in ("FD001", "FD003"):
+        cfg = cfgs[sub]; model = models[sub]
+        _, _, te_ds, _ = prepare_cmapss(cfg.data, sub, cfg.seed)
+        te_ld = DataLoader(te_ds, batch_size=512, shuffle=False)
+        plot_fig5(model, te_ld, device, out_dir, sub)
+    print("全部图表完成（论文布局：图3/4/6 跨数据集各一张，图5 每数据集一张）")
 
 
 if __name__ == "__main__":
