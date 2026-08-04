@@ -57,9 +57,18 @@ def main():
     alpha = args.alpha or cfg.fuzzy.alpha
     if args.feat_mode: cfg.fuzzy.feat_mode = args.feat_mode
     if args.pool_mode: cfg.fuzzy.pool_mode = args.pool_mode
-    if args.hidden: cfg.fuzzy.hidden = args.hidden
+    if args.hidden is not None: cfg.fuzzy.hidden = args.hidden
     if args.blocks is not None: cfg.large.n_blocks = args.blocks
     ckpt = Path(cfg.out_dir) / "checkpoints" / args.subset
+
+    # 从权重推断层数 + 阶段3 配置对齐（子代理审查发现：此前固定默认值导致加载崩溃）
+    ckpt_dir = Path(cfg.out_dir) / "checkpoints" / args.subset
+    _sd = torch.load(ckpt_dir / "small.pt", map_location="cpu")
+    cfg.small.n_layers = max(int(k.split(".")[2]) for k in _sd if "encoder.layers." in k) + 1
+    _sd2 = torch.load(ckpt_dir / "large.pt", map_location="cpu")
+    cfg.large.n_blocks = max(int(k.split(".")[2]) for k in _sd2 if "gpt2.h." in k) + 1
+    cfg.reflection.use_norm = False
+    cfg.reflection.d_input = (cfg.data.window // cfg.large.patch_size) * cfg.large.d_embed
 
     model = CoLLM(cfg).to(device).eval()
     for part, name in [("small", "small"), ("large", "large"),
