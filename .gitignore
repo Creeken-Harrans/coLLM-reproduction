@@ -1,0 +1,6 @@
+outputs/checkpoints/*.pt
+outputs/logs/
+outputs/results/
+.venv/
+__pycache__/
+*.pyc
