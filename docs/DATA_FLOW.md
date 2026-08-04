@@ -42,8 +42,11 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ Patch Embedding（patch 4 / st
 损失：MSE(Qs, Q*_s) + MSE(Ql, Q*_l)，只更新 FNN 与自反思网络
 ```
 - 实现：`scripts/train_conf.py` → `collm/models/fuzzy.py`、`collm/models/reflection.py`
-- FNN：64 高斯隶属函数（表 I）→ 模糊特征（时间聚合：FD001 stats / FD003 mean）→ MLP → sigmoid
-- 自反思：φl 展平 9216 → LayerNorm → 单层全连接 → sigmoid
+- FNN：64 高斯隶属函数（表 I）→ 模糊特征（时间聚合：FD001 stats / FD003 mean）→ **单层置信度头**（公式 11 字面）→ sigmoid
+- 自反思：φl 展平 9216 → **单层全连接（无 LayerNorm，论文字面）** → sigmoid
+- α：**FD001=4 / FD003=5**（论文未给 α；网格实测最优；BANjian16 用 5）
+- **训练数据 = train+val 全部窗口**（阶段3 是浅层模块，无早停泄漏问题；网格实测更优）
+- 固定 epochs（val 置信度 MSE 早停与组合目标不一致，实测固定 100ep 更优）
 - 确定性训练（num_workers=0，可复现）
 
 ## 推理路由（算法 1 / 图 1，PDF 原文确认）

@@ -251,6 +251,8 @@ def main():
     if args.blocks is not None: cfg.large.n_blocks = args.blocks
     if args.hidden is not None: cfg.fuzzy.hidden = args.hidden
     cfg.reflection.use_norm = args.ref_norm
+    n_patch = (cfg.data.window + cfg.large.patch_stride) // cfg.large.patch_size if cfg.large.pad_patches else cfg.data.window // cfg.large.patch_size
+    cfg.reflection.d_input = n_patch * cfg.large.d_embed
     device = args.device if torch.cuda.is_available() else "cpu"
     ckpt = Path(cfg.out_dir) / "checkpoints" / args.subset
     # 从权重自动推断 SM/LM 层数（与 train_conf/evaluate 一致）
