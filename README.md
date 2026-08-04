@@ -46,6 +46,13 @@ coLLM/
 └── outputs/                  # 训练产物（权重/结果 JSON/图，权重不入库）
 ```
 
+## 环境依赖
+
+- Python 3.12 + PyTorch 2.9（cu128）+ transformers 5.x
+- **GPT-2 预训练权重**：从 HuggingFace 下载 `gpt2` 到 `pretrained/gpt2/`
+  （`model.safetensors` 548MB，不入库；下载后 `collm/config.py` 的
+  `LargeModelConfig.model_name = "pretrained/gpt2"` 自动加载）
+
 ## 快速开始
 
 ```bash
