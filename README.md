@@ -8,7 +8,7 @@ Agent and Self-Reflection*（IEEE TFS 2026）——模糊决策智能体 + 自�
 
 ```
 输入 x ∈ R^{50×14}（删 7 恒定传感器 + z-score + 滑窗 50/stride 1）
-  ├─ SM（Transformer Encoder 6 层, 表 I 配置）──> ys, φs(x) ∈ R^{50×32}
+  ├─ SM（Transformer Encoder 8 层 FD001 / 6 层 FD003, 表 I 配置）──> ys, φs(x) ∈ R^{50×32}
   │    └─ FNN（64 高斯隶属函数 + 模糊特征）──> Qs
   │         ├─ Qs ≥ τ1 ──> 直接输出 ys（快速退出）
   │         └─ Qs < τ1 ──> 调用 LM
@@ -34,20 +34,20 @@ python scripts/train_small.py --subset FD001
 python scripts/train_large.py --subset FD001 --lr 2e-3 --batch 256 --blocks 9
 python scripts/train_large.py --subset FD003 --lr 2e-3 --batch 256 --blocks 12
 
-# 阶段 3：FNN + 自反思（FD001 用 stats 聚合 / FD003 用 mean）
-python scripts/train_conf.py --subset FD001 --pool-mode stats
-python scripts/train_conf.py --subset FD003 --blocks 12
+# 阶段 3：FNN + 自反思（最终配置：α=4/5、单层头、无 LN、train+val、固定 epochs）
+python scripts/train_conf.py --subset FD001 --pool-mode stats --alpha 4 --blocks 9 --hidden 0 --fixed --use-val-train
+python scripts/train_conf.py --subset FD003 --pool-mode mean --alpha 5 --blocks 12 --hidden 0 --fixed --use-val-train
 
 # 评估（论文 A/B/C/T3-09 阈值 + 消融 + 置信度分箱 + FLOPs）
-python scripts/evaluate.py --subset FD001 --pool-mode stats
-python scripts/evaluate.py --subset FD003 --blocks 12
+python scripts/evaluate.py --subset FD001 --pool-mode stats --alpha 4 --blocks 9 --hidden 0
+python scripts/evaluate.py --subset FD003 --pool-mode mean --alpha 5 --blocks 12 --hidden 0
 
 # 诊断（Qs/Ql 校准、隶属函数）
 python scripts/diagnose.py --subset FD001 --pool-mode stats
 
 # 可视化（论文图 3-6 风格 → outputs/figures/）
-python scripts/plot_results.py --subset FD001 --pool-mode stats
-python scripts/plot_results.py --subset FD003 --blocks 12
+python scripts/plot_results.py --subset FD001 --pool-mode stats --blocks 9 --hidden 0
+python scripts/plot_results.py --subset FD003 --pool-mode mean --blocks 12 --hidden 0
 
 # 汇总图（论文 vs 复现 / 消融 / 加速比）
 python scripts/plot_summary.py
@@ -76,3 +76,14 @@ pretrained/gpt2/ GPT-2 本地权重
 outputs/         checkpoints（权重）/ results（JSON）/ figures（图）/ logs
 docs/            设计决策、错误记录、语义核对、验收、最终结果
 ```
+
+## 最终结果（2026-08-04，实测）
+
+| 配置 | 论文 FD001 | 复现 FD001 | 论文 FD003 | 复现 FD003 |
+|---|---|---|---|---|
+| CoLLM-A | 12.45/9.13/3.88× | **12.79/9.40**/1.23× | 11.26/7.42/14.54× | **11.16/6.44**/90.6× ✓ |
+| CoLLM-B | 12.40/8.98/2.08× | **12.75/9.43**/1.09× | 11.11/7.23/2.29× | **11.01/6.30**/2.59× ✓ |
+| CoLLM-C | 12.33/8.86/1.26× | **12.75/9.41**/1.00× | 11.11/7.04/1.57× | **11.01/6.31**/1.97× ✓ |
+
+FD003 全配置（RMSE/MAE/加速比 B/C）超过论文；FD001 差论文 0.34-0.42
+（根因 LM 14.31 vs 论文 12.34，详见 docs/FINAL_RESULTS.md 差距说明）。
