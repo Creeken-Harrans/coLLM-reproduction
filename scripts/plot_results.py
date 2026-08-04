@@ -21,7 +21,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from collm.config import Config
+from collm.config import get_config
 from collm.data import prepare_cmapss
 from collm.models.collm import CoLLM
 
@@ -239,27 +239,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--subset", default="FD001", choices=["FD001", "FD003"])
     ap.add_argument("--device", default="cuda")
-    ap.add_argument("--pool-mode", default=None, choices=["mean", "stats"],
-                    help="FNN 时间聚合（FD001=stats、FD003=mean，对齐最终配置）")
-    ap.add_argument("--blocks", type=int, default=None, help="LM 层数（FD001=9、FD003=12）")
-    ap.add_argument("--hidden", type=int, default=None, help="FNN hidden（0=单层，匹配阶段3 最终配置）")
-    ap.add_argument("--ref-norm", action="store_true", help="反思网络 LayerNorm（阶段3 无 LN 默认关）")
     args = ap.parse_args()
 
-    cfg = Config()
-    if args.pool_mode: cfg.fuzzy.pool_mode = args.pool_mode
-    if args.blocks is not None: cfg.large.n_blocks = args.blocks
-    if args.hidden is not None: cfg.fuzzy.hidden = args.hidden
-    cfg.reflection.use_norm = args.ref_norm
-    n_patch = (cfg.data.window + cfg.large.patch_stride) // cfg.large.patch_size if cfg.large.pad_patches else cfg.data.window // cfg.large.patch_size
-    cfg.reflection.d_input = n_patch * cfg.large.d_embed
+    cfg = get_config(args.subset)
+
     device = args.device if torch.cuda.is_available() else "cpu"
     ckpt = Path(cfg.out_dir) / "checkpoints" / args.subset
-    # 从权重自动推断 SM/LM 层数（与 train_conf/evaluate 一致）
-    _sd = torch.load(ckpt / "small.pt", map_location="cpu")
-    cfg.small.n_layers = max(int(k.split(".")[2]) for k in _sd if "encoder.layers." in k) + 1
-    _sd2 = torch.load(ckpt / "large.pt", map_location="cpu")
-    cfg.large.n_blocks = max(int(k.split(".")[2]) for k in _sd2 if "gpt2.h." in k) + 1
     model = CoLLM(cfg).to(device).eval()
     for part, name in [("small", "small"), ("large", "large"),
                        ("fuzzy", "fuzzy"), ("reflection", "reflection")]:

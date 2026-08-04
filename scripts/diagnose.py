@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from collm.config import Config
+from collm.config import get_config
 from collm.data import prepare_cmapss
 from collm.models.collm import CoLLM
 
@@ -45,20 +45,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--subset", default="FD001", choices=["FD001", "FD003"])
     ap.add_argument("--device", default="cuda")
-    ap.add_argument("--alpha", type=float, default=None)
-    ap.add_argument("--feat-mode", default=None, choices=["fuzzy", "raw"])
-    ap.add_argument("--pool-mode", default=None, choices=["mean", "stats", "flatten"])
-    ap.add_argument("--hidden", type=int, default=None)
-    ap.add_argument("--blocks", type=int, default=None, help="LM 层数（FD001=9、FD003=12）")
     args = ap.parse_args()
 
-    cfg = Config()
+    cfg = get_config(args.subset)
     device = args.device if torch.cuda.is_available() else "cpu"
-    alpha = args.alpha or cfg.fuzzy.alpha
-    if args.feat_mode: cfg.fuzzy.feat_mode = args.feat_mode
-    if args.pool_mode: cfg.fuzzy.pool_mode = args.pool_mode
-    if args.hidden is not None: cfg.fuzzy.hidden = args.hidden
-    if args.blocks is not None: cfg.large.n_blocks = args.blocks
+    alpha = cfg.fuzzy.alpha
     ckpt = Path(cfg.out_dir) / "checkpoints" / args.subset
 
     # 从权重推断层数 + 阶段3 配置对齐（子代理审查发现：此前固定默认值导致加载崩溃）
@@ -67,8 +58,6 @@ def main():
     cfg.small.n_layers = max(int(k.split(".")[2]) for k in _sd if "encoder.layers." in k) + 1
     _sd2 = torch.load(ckpt_dir / "large.pt", map_location="cpu")
     cfg.large.n_blocks = max(int(k.split(".")[2]) for k in _sd2 if "gpt2.h." in k) + 1
-    cfg.reflection.use_norm = False
-    cfg.reflection.d_input = (cfg.data.window // cfg.large.patch_size) * cfg.large.d_embed
 
     model = CoLLM(cfg).to(device).eval()
     for part, name in [("small", "small"), ("large", "large"),

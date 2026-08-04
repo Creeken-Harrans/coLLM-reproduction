@@ -1,13 +1,14 @@
-"""CoLLM 评估与论文标准验收。
+"""CoLLM 评估与论文标准验收（表 II/III）。
 
 一次性对测试集全样本推理（SM+LM 全跑，用于完整统计），再按阈值组合:
   y_final = ys           若 Q_s ≥ τ1
           = yl           若 Q_s < τ1 且 Δ=Q_s−Q_l ≤ τ2
-          = (ys+yl)/2    若 Q_s < τ1 且 Δ > τ2
-输出: RMSE/MAE（CoLLM-A/B/C）、路由统计、FLOPs 加速比、自反思消融、
-反思样本正确率（>70% SM 更优）、置信度分组 RMSE（图 5 风格）。
+          = (ys+yl)/2    若 Q_s < τ1 且 Δ > τ2   （论文算法 1，G(·)=(ys+yl)/2）
 
-用法: python scripts/evaluate.py --subset FD001 [--alpha 15]
+输出: RMSE/MAE（CoLLM-A/B/C + 表 III [0.9,0.05] 对照）、路由统计、
+FLOPs 加速比（相对纯 LM）、自反思消融、反思样本正确率、置信度分箱（图 5）。
+
+用法: python scripts/evaluate.py --subset FD001
 """
 import argparse
 import json
@@ -20,7 +21,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from collm.config import Config
+from collm.config import get_config
 from collm.data import prepare_cmapss
 from collm.models.collm import CoLLM
 from collm.flops import collm_flops, collm_speedup
@@ -36,8 +37,8 @@ def full_inference(model: CoLLM, loader: DataLoader, device: str, batch: int = 5
         x = x.to(device)
         ys_b, feat_s = model.small(x)
         yl_b, feat_l = model.large(x)
-        qs_b = model.fuzzy(feat_s, ys_b if model.cfg.fuzzy.cat_pred else None)
-        ql_b = model.reflection(feat_l, yl_b if model.cfg.reflection.cat_pred else None)
+        qs_b = model.fuzzy(feat_s)
+        ql_b = model.reflection(feat_l)
         ys_l.append(ys_b.cpu()); yl_l.append(yl_b.cpu())
         qs_l.append(qs_b.cpu()); ql_l.append(ql_b.cpu())
         yt_l.append(y)
@@ -72,39 +73,15 @@ def combine(ys, yl, qs, ql, yt, tau1, tau2, use_reflection=True):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--subset", default="FD001", choices=["FD001", "FD003"])
-    ap.add_argument("--alpha", type=float, default=None)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--batch", type=int, default=512)
     ap.add_argument("--json", type=str, default=None, help="结果 JSON 输出路径")
-    ap.add_argument("--feat-mode", default=None, choices=["fuzzy", "raw"])
-    ap.add_argument("--pool-mode", default=None, choices=["mean", "stats", "flatten"])
-    ap.add_argument("--hidden", type=int, default=None)
-    ap.add_argument("--blocks", type=int, default=None, help="LM 层数（FD001=9、FD003=12）")
-    ap.add_argument("--ref-norm", action="store_true", help="反思网络输入 LayerNorm（阶段3 无 LN 版默认关）")
-    ap.add_argument("--cat-pred", action="store_true", help="FNN/反思输入拼接预测值 ys/yl（联合分布实验）")
     args = ap.parse_args()
 
-    cfg = Config()
+    cfg = get_config(args.subset)
     set_seed(cfg.seed)
     device = args.device if torch.cuda.is_available() else "cpu"
-    alpha = args.alpha or cfg.fuzzy.alpha
-    if args.feat_mode: cfg.fuzzy.feat_mode = args.feat_mode
-    if args.pool_mode: cfg.fuzzy.pool_mode = args.pool_mode
-    if args.hidden is not None: cfg.fuzzy.hidden = args.hidden
-    if args.blocks is not None: cfg.large.n_blocks = args.blocks
-    cfg.reflection.use_norm = args.ref_norm
-    cfg.fuzzy.cat_pred = args.cat_pred
-    cfg.reflection.cat_pred = args.cat_pred
-    cfg.fuzzy.cat_pred = args.cat_pred
-    cfg.reflection.cat_pred = args.cat_pred
-    n_patch = (cfg.data.window + cfg.large.patch_stride) // cfg.large.patch_size if cfg.large.pad_patches else cfg.data.window // cfg.large.patch_size
-    cfg.reflection.d_input = n_patch * cfg.large.d_embed
     ckpt_dir = Path(cfg.out_dir) / "checkpoints" / args.subset
-    # 从权重自动推断 SM/LM 层数（防配置与权重不一致）
-    _sd_sm = torch.load(ckpt_dir / "small.pt", map_location="cpu")
-    cfg.small.n_layers = max(int(k.split(".")[2]) for k in _sd_sm if "encoder.layers." in k) + 1
-    _sd_lg = torch.load(ckpt_dir / "large.pt", map_location="cpu")
-    cfg.large.n_blocks = max(int(k.split(".")[2]) for k in _sd_lg if "gpt2.h." in k) + 1
 
     model = CoLLM(cfg).to(device)
     model.small.load_state_dict(torch.load(ckpt_dir / "small.pt", map_location=device))
@@ -124,7 +101,7 @@ def main():
     for k, v in flops.items():
         print(f"  FLOPs[{k}] = {v/1e6:.2f}M")
 
-    # ---- 阈值组合（论文正文 A/B/C + 表 III 的 [0.9, 0.05] 对照）----
+    # ---- 阈值组合（论文 A/B/C + 表 III [0.9, 0.05] 对照）----
     ths = cfg.thresholds
     combos = {
         "A": (ths.fd001_a if args.subset == "FD001" else ths.fd003_a),
@@ -132,7 +109,7 @@ def main():
         "C": (ths.fd001_c if args.subset == "FD001" else ths.fd003_c),
         "T3-09": (0.9, 0.05),   # 表 III 消融所用阈值
     }
-    results = {"subset": args.subset, "alpha": alpha, "n_test": len(ys),
+    results = {"subset": args.subset, "alpha": cfg.fuzzy.alpha, "n_test": len(ys),
                "baselines": {"SM": {"RMSE": rmse(ys, yt), "MAE": mae(ys, yt)},
                              "LM": {"RMSE": rmse(yl, yt), "MAE": mae(yl, yt)}},
                "flops": flops, "combos": {}, "ablation": {}}
@@ -141,7 +118,7 @@ def main():
         yf, sm_exit, need_lm, reflect = combine(ys, yl, qs, ql, yt, tau1, tau2)
         lm_ratio = need_lm.mean()
         speedup = collm_speedup(flops, lm_ratio)
-        # 反思正确率：反思样本中 SM 误差更小（>70% 为论文标准；空切片置 0）
+        # 反思正确率：反思样本中 SM 误差更小（论文表 III >70% 标准；空切片置 0）
         refl_correct = 0.0
         if reflect.sum() > 0:
             refl_correct = float(np.mean(np.abs(ys[reflect] - yt[reflect])
@@ -151,7 +128,7 @@ def main():
         entry = {
             "tau1": tau1, "tau2": tau2,
             "RMSE": rmse(yf, yt), "MAE": mae(yf, yt),
-            # 论文“准确率”= 100×(1−(CoLLM−LM)/LM)：CoLLM 优于 LM 时 >100%
+            # 论文"准确率"= 100×(1−(CoLLM−LM)/LM)：CoLLM 优于 LM 时 >100%
             "accuracy_vs_LM_RMSE": 100 * (2 - rmse(yf, yt) / rmse(yl, yt)),
             "accuracy_vs_LM_MAE": 100 * (2 - mae(yf, yt) / mae(yl, yt)),
             "sm_exit_ratio": float(sm_exit.mean()), "lm_ratio": float(lm_ratio),
@@ -180,30 +157,30 @@ def main():
         return rows
 
     def monotonicity(rows):
-        """置信度有效性的单调性指标：非空区间的 RMSE 与区间序号的 Spearman。"""
+        """置信度有效性的单调性指标：非空区间的 RMSE 与区间序号的 Pearson 相关。"""
         xs, ys_ = [], []
         for k, r in enumerate(rows):
             if r["rmse"] is not None:
                 xs.append(k); ys_.append(r["rmse"])
-        return float(np.corrcoef(xs, ys_)[0, 1]) if len(xs) > 2 else float("nan")
+        if len(xs) < 3:
+            return float("nan")
+        return float(np.corrcoef(xs, ys_)[0, 1])
 
-    results["confidence_bins"] = {
-        "SM": bin_rmse(qs, ys - yt),
-        "LM": bin_rmse(ql, yl - yt),
-    }
+    conf_bins = {"SM": bin_rmse(qs, np.abs(ys - yt)), "LM": bin_rmse(ql, np.abs(yl - yt))}
+    results["confidence_bins"] = conf_bins
     results["confidence_monotonicity"] = {
-        "SM": monotonicity(results["confidence_bins"]["SM"]),
-        "LM": monotonicity(results["confidence_bins"]["LM"]),
-    }
+        "SM": monotonicity(conf_bins["SM"]), "LM": monotonicity(conf_bins["LM"])}
     print("\n=== 置信度分组 RMSE（等宽 0.0–1.0 十区间，图5）===")
-    for who, rows in results["confidence_bins"].items():
-        print(f"  {who}: " + "  ".join(f"{r['rmse'] if r['rmse'] is not None else float('nan'):.1f}" for r in rows)
-              + f" | 单调性(负相关=有效) {results['confidence_monotonicity'][who]:+.3f}")
+    for name in ("SM", "LM"):
+        vals = [r["rmse"] for r in conf_bins[name]]
+        print(f"  {name}: " + "  ".join(f"{v:.1f}" if v is not None else "nan" for v in vals)
+              + f" | 单调性(负相关=有效) {results['confidence_monotonicity'][name]:+.3f}")
 
-    out_path = args.json or (Path(cfg.out_dir) / "results" / f"{args.subset}_results.json")
+    # 保存结果
+    out_path = args.json or Path(cfg.out_dir) / "results" / f"{args.subset}_results.json"
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(results, indent=2, ensure_ascii=False))
+    out_path.write_text(json.dumps(results, indent=1, ensure_ascii=False))
     print(f"\n结果已保存: {out_path}")
 
 

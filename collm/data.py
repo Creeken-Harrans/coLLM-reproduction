@@ -10,6 +10,7 @@
            = 该 unit 总寿命 − (i+49)。
   - 测试: RUL_FD00X 给出各测试 unit 末端 cycle 的 RUL，窗口向前递推。
 """
+import json
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -152,6 +153,24 @@ def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
         # 标准化统计量（当前 norm_mode 下）——供可视化等下游复用，保证与训练一致
         "mu": mu, "sigma": sigma,
     }
+    # 预处理数据落盘（data/processed，供完整流程复用/审计）
+    try:
+        out_dir = Path(__file__).resolve().parents[1] / "data" / "processed"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            out_dir / f"{subset}_processed.npz",
+            x_train=tr_x[tr_mask], y_train=tr_y[tr_mask],
+            x_val=tr_x[val_mask], y_val=tr_y[val_mask],
+            x_test=te_x, y_test=te_y,
+            train_unit_ids=tr_w_units[tr_mask], val_unit_ids=tr_w_units[val_mask],
+            mu=mu, sigma=sigma,
+        )
+        (out_dir / f"{subset}_meta.json").write_text(
+            json.dumps({k: (v.tolist() if isinstance(v, np.ndarray) else v)
+                        for k, v in stats.items() if k not in ("mu", "sigma")},
+                       indent=1, ensure_ascii=False))
+    except Exception as e:  # 落盘失败不影响训练
+        print(f"[data] 预处理落盘失败: {e}")
     return tr_ds, val_ds, te_ds, stats
 
 
