@@ -121,6 +121,9 @@ def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
     # entire dataset"。训练场景下"整个数据集"= 全部训练数据（划分 val 之前，
     # 不含 test——论文语境为最小化 train/test 分布不匹配）。
     # 'all_train'=train+val 全部 | 'train'=仅 val 划分外 | 'entire'=含 test（实测更差）。
+    # 注：μ/σ 在滑窗后的窗口数组上计算（原始行被 1-50 个窗口重复计入，中段权重
+    # 约 50× 边缘）；对线性漂移传感器加权均值与原始行均值精确相等，方差仅 ~1%
+    # 量级偏移（子代理推导），对 RMSE 影响可忽略——与论文 "entire dataset" 字面一致。
     if cfg.norm_mode == "all_train":
         mu = tr_x.reshape(-1, tr_x.shape[-1]).mean(axis=0)
         sigma = tr_x.reshape(-1, tr_x.shape[-1]).std(axis=0)
