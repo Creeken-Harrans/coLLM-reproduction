@@ -21,6 +21,31 @@ Agent and Self-Reflection*（IEEE TFS 2026）——模糊决策智能体 + 自�
 三阶段训练：阶段 1 SM → 阶段 2 LM（微调 patch_embed/位置嵌入/LN/预测头，
 冻结 attention+FFN）→ 阶段 3 FNN + 自反思（其余全部冻结）。
 
+## 项目结构
+
+```
+coLLM/
+├── collm/                    # 核心库
+│   ├── config.py             # 定稿配置集中化：get_config(subset)（FD001/FD003 差异一览）
+│   ├── data.py               # 数据预处理（→ data/processed 落盘）
+│   ├── train_common.py       # 训练循环/早停/评估
+│   ├── flops.py              # FLOPs 统计（论文口径）
+│   └── models/               # small（阶段1）/ large（阶段2）/ fuzzy（FNN）/ reflection（自反思）
+├── scripts/
+│   ├── run_pipeline.sh       # 一键完整流程（预处理→三阶段→评估→图）
+│   ├── train_small.py        # 阶段1 SM
+│   ├── train_large.py        # 阶段2 LM
+│   ├── train_conf.py         # 阶段3 FNN+自反思
+│   ├── evaluate.py           # 表 II/III 指标（A/B/C/T3-09+消融+分箱+FLOPs）
+│   ├── diagnose.py           # 置信度校准诊断
+│   ├── plot_results.py       # 论文图 3-6（完全对齐论文布局）
+│   └── plot_summary.py       # 汇总图（论文 vs 复现/消融/加速比）
+├── data/raw/cmapss/          # CMAPSS 原始数据（NASA 公开数据集）
+├── data/processed/           # 预处理结果（npz + meta json，训练时自动生成）
+├── docs/                     # FINAL_RESULTS（终版）/ REVISIONS（决策史）/ DATA_FLOW / DESIGN_DECISIONS
+└── outputs/                  # 训练产物（权重/结果 JSON/图，权重不入库）
+```
+
 ## 快速开始
 
 ```bash
