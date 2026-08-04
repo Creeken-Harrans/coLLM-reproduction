@@ -60,6 +60,7 @@ def main():
                     help="时间聚合：mean / stats（mean+max+std+last）/ flatten（全步展平）")
     ap.add_argument("--blocks", type=int, default=None, help="LM 层数（FD001=9、FD003=12）")
     ap.add_argument("--ref-norm", action="store_true", help="反思网络输入 LayerNorm（默认关——论文字面单层全连接）")
+    ap.add_argument("--cat-pred", action="store_true", help="FNN/反思输入拼接预测值 ys/yl（联合分布实验）")
     ap.add_argument("--fixed", action="store_true", help="固定 epochs 训练（不早停——网格实测更优）")
     ap.add_argument("--use-val-train", action="store_true", help="FNN/反思训练数据 = train+val 全部（网格实测更优）")
     args = ap.parse_args()
@@ -77,6 +78,8 @@ def main():
     if args.blocks is not None:
         cfg.large.n_blocks = args.blocks
     cfg.reflection.use_norm = args.ref_norm
+    cfg.fuzzy.cat_pred = args.cat_pred
+    cfg.reflection.cat_pred = args.cat_pred
     # 反思输入维度 = LM 实际 patch 数 × 768（LM 结构决定，勿硬编码）
     n_patch = (cfg.data.window + cfg.large.patch_stride) // cfg.large.patch_size  # 50+4=54→13（GPT4TS pad）
     if not cfg.large.pad_patches:
@@ -127,8 +130,8 @@ def main():
     criterion = nn.MSELoss()
 
     def make_loader(name, batch=1024, shuffle=True):
-        fs, fl, qs_t, ql_t, _, _, _ = feats[name]
-        ds = TensorDataset(fs, fl, qs_t, ql_t)
+        fs, fl, qs_t, ql_t, ys, yl, _ = feats[name]
+        ds = TensorDataset(fs, fl, qs_t, ql_t, ys, yl)
         # num_workers=0：多 worker 的 shuffle 不受 set_seed 控制（阶段3 曾出现
         # 同配置两次结果不同——worker RNG 独立），确定性优先
         return DataLoader(ds, batch_size=batch, shuffle=shuffle, num_workers=0)
@@ -149,11 +152,13 @@ def main():
     for epoch in range(1, args.epochs + 1):
         fuzzy.train(); reflection.train()
         total, n = 0.0, 0
-        for fs, fl, qs_t, ql_t in make_loader("trainval" if args.use_val_train else "train"):
+        for fs, fl, qs_t, ql_t, ys_b, yl_b in make_loader("trainval" if args.use_val_train else "train"):
             fs, fl = fs.to(device), fl.to(device)
             qs_t, ql_t = qs_t.to(device), ql_t.to(device)
+            ys_b, yl_b = ys_b.to(device), yl_b.to(device)
             optimizer.zero_grad(set_to_none=True)
-            loss = criterion(fuzzy(fs), qs_t) + criterion(reflection(fl), ql_t)
+            loss = (criterion(fuzzy(fs, ys_b if args.cat_pred else None), qs_t)
+                    + criterion(reflection(fl, yl_b if args.cat_pred else None), ql_t))
             loss.backward()
             optimizer.step()
             total += loss.item() * len(fs); n += len(fs)
@@ -162,10 +167,12 @@ def main():
         fuzzy.eval(); reflection.eval()
         vloss = 0.0; vn = 0
         with torch.no_grad():
-            for fs, fl, qs_t, ql_t in val_ld:
+            for fs, fl, qs_t, ql_t, ys_b, yl_b in val_ld:
                 fs, fl = fs.to(device), fl.to(device)
                 qs_t, ql_t = qs_t.to(device), ql_t.to(device)
-                l = criterion(fuzzy(fs), qs_t) + criterion(reflection(fl), ql_t)
+                ys_b, yl_b = ys_b.to(device), yl_b.to(device)
+                l = (criterion(fuzzy(fs, ys_b if args.cat_pred else None), qs_t)
+                     + criterion(reflection(fl, yl_b if args.cat_pred else None), ql_t))
                 vloss += l.item() * len(fs); vn += len(fs)
         vloss /= vn
         if vloss < best_val:

@@ -36,8 +36,8 @@ def full_inference(model: CoLLM, loader: DataLoader, device: str, batch: int = 5
         x = x.to(device)
         ys_b, feat_s = model.small(x)
         yl_b, feat_l = model.large(x)
-        qs_b = model.fuzzy(feat_s)
-        ql_b = model.reflection(feat_l)
+        qs_b = model.fuzzy(feat_s, ys_b if model.cfg.fuzzy.cat_pred else None)
+        ql_b = model.reflection(feat_l, yl_b if model.cfg.reflection.cat_pred else None)
         ys_l.append(ys_b.cpu()); yl_l.append(yl_b.cpu())
         qs_l.append(qs_b.cpu()); ql_l.append(ql_b.cpu())
         yt_l.append(y)
@@ -81,6 +81,7 @@ def main():
     ap.add_argument("--hidden", type=int, default=None)
     ap.add_argument("--blocks", type=int, default=None, help="LM 层数（FD001=9、FD003=12）")
     ap.add_argument("--ref-norm", action="store_true", help="反思网络输入 LayerNorm（阶段3 无 LN 版默认关）")
+    ap.add_argument("--cat-pred", action="store_true", help="FNN/反思输入拼接预测值 ys/yl（联合分布实验）")
     args = ap.parse_args()
 
     cfg = Config()
@@ -92,6 +93,10 @@ def main():
     if args.hidden is not None: cfg.fuzzy.hidden = args.hidden
     if args.blocks is not None: cfg.large.n_blocks = args.blocks
     cfg.reflection.use_norm = args.ref_norm
+    cfg.fuzzy.cat_pred = args.cat_pred
+    cfg.reflection.cat_pred = args.cat_pred
+    cfg.fuzzy.cat_pred = args.cat_pred
+    cfg.reflection.cat_pred = args.cat_pred
     n_patch = (cfg.data.window + cfg.large.patch_stride) // cfg.large.patch_size if cfg.large.pad_patches else cfg.data.window // cfg.large.patch_size
     cfg.reflection.d_input = n_patch * cfg.large.d_embed
     ckpt_dir = Path(cfg.out_dir) / "checkpoints" / args.subset

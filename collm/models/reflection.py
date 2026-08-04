@@ -20,11 +20,14 @@ class ReflectionModel(nn.Module):
         # （实测 Ql 恒 1.0，见 REVISIONS #14）。LayerNorm 不改论文结构（展平+单层全连接）。
         self.norm = nn.LayerNorm(cfg.d_input) if cfg.use_norm else nn.Identity()
         # 单层全连接投影（论文公式 12）：展平 t×d_l → 标量
-        self.proj = nn.Linear(cfg.d_input, 1)
+        in_dim = cfg.d_input + (1 if cfg.cat_pred else 0)   # 拼接预测值 yl（联合分布实验）
+        self.proj = nn.Linear(in_dim, 1)
 
-    def forward(self, feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, feat: torch.Tensor, y_pred: torch.Tensor | None = None) -> torch.Tensor:
         """feat: φl(x) (B, t, d_l) → Q_l: (B,)"""
         b = feat.shape[0]
         f = feat.reshape(b, -1)                    # 展平（论文）
         f = self.norm(f)                           # 防饱和（可选）
+        if y_pred is not None and self.cfg.cat_pred:
+            f = torch.cat([f, y_pred.unsqueeze(-1)], dim=-1)
         return torch.sigmoid(self.proj(f).squeeze(-1))

@@ -60,6 +60,7 @@ class FuzzyAgent(nn.Module):
                  init_sigma: float | None = None):
         super().__init__()
         self.cfg = cfg
+        self.pred_dim = 1 if cfg.cat_pred else None   # 拼接预测值 ys（联合分布实验）
         n_mem_per_dim = cfg.n_membership // cfg.d_input
         if init_mu is not None:
             self.membership = GaussianMembership(cfg.d_input, n_mem_per_dim,
@@ -81,11 +82,12 @@ class FuzzyAgent(nn.Module):
             else:
                 # 论文公式 11 字面：σ(W·flatten(M) + b)——单层
                 self.flatten_proj = None
-                self.head = nn.Linear(head_in * self.pool_dim, 1)
+                self.head = nn.Linear(head_in * self.pool_dim + (self.pred_dim or 0), 1)
         else:
             self.pool_dim = 4 if cfg.pool_mode == "stats" else 1   # mean+max+std+last
             head_in = (cfg.n_membership if cfg.feat_mode == "fuzzy" else cfg.d_input) * self.pool_dim
             self.flatten_proj = None
+            head_in = head_in + (self.pred_dim or 0)
             if cfg.hidden:
                 self.head = nn.Sequential(
                     nn.Linear(head_in, cfg.hidden), nn.GELU(),
@@ -120,20 +122,25 @@ class FuzzyAgent(nn.Module):
         return torch.cat([h.mean(dim=1), h.amax(dim=1), h.std(dim=1),
                           h[:, -1]], dim=-1)
 
-    def forward(self, feat: torch.Tensor) -> torch.Tensor:
-        """feat: φs(x) (B, T, d_s) → Q_s: (B,)"""
+    def forward(self, feat: torch.Tensor, y_pred: torch.Tensor | None = None) -> torch.Tensor:
+        """feat: φs(x) (B, T, d_s) → Q_s: (B,)
+
+        y_pred: SM 预测 ys（论文"R 与 F 学习输入特征和预测结果的联合分布"——
+        FNN 输入含预测结果时拼接进置信度头）。
+        """
         if self.cfg.feat_mode == "raw":
-            # 消融（公式 11 字面）：原始 φs 直接进置信度头
             h = self._pool(feat)
             if self.cfg.pool_mode == "flatten" and self.flatten_proj is not None:
                 h = self.flatten_proj(h)
-            q = torch.sigmoid(self.head(h))
-            return q.squeeze(-1)
-        m = self.membership(feat)                  # (B, T, n_mem)
-        m = self._pool(m)                          # 时间维聚合
-        if self.cfg.pool_mode == "flatten" and self.flatten_proj is not None:
-            m = self.flatten_proj(m)
-        q = torch.sigmoid(self.head(m))
+        else:
+            m = self.membership(feat)              # (B, T, n_mem)
+            m = self._pool(m)                      # 时间维聚合
+            if self.cfg.pool_mode == "flatten" and self.flatten_proj is not None:
+                m = self.flatten_proj(m)
+            h = m
+        if y_pred is not None and self.pred_dim is not None:
+            h = torch.cat([h, y_pred.unsqueeze(-1)], dim=-1)
+        q = torch.sigmoid(self.head(h))
         return q.squeeze(-1)
 
 

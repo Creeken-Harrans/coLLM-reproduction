@@ -83,6 +83,7 @@ class FuzzyConfig:
     feat_mode: str = "fuzzy"  # 'fuzzy'=模糊特征（论文公式9+表I）| 'raw'=原始 φs 池化（公式11 字面，消融）
     pool_mode: str = "mean"   # 时间聚合：'mean'=均值 | 'stats'=mean+max+std+last | 'flatten'=全时间步展平（信息最全，实验）
     hidden: Optional[int] = 64
+    cat_pred: bool = False    # 置信度头输入拼接预测值 ys（论文"输入特征和预测结果的联合分布"，实验）
     alpha: float = 8.0        # 残差缩放系数 α：调小使 Q* 二值化（对/错），跨分布可预测性更好（REVISIONS #15）
 
 
@@ -91,6 +92,7 @@ class ReflectionConfig:
     """自反思模型 R（论文：FCN，输入展平 + 单层全连接 → 置信度标量）。"""
     d_input: int = 9984       # 展平后维度 = n_patch(13) × d_l(768)（GPT4TS 式补 13 patch）
     use_norm: bool = True     # 输入 LayerNorm（防 logit 饱和，论文未明确，实验选项）
+    cat_pred: bool = False    # 输入拼接预测值 yl（论文"输入特征和预测结果的联合分布"，实验）
     alpha: float = 8.0        # 与 FNN 相同取法
 
 
