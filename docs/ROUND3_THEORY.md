@@ -1,5 +1,11 @@
 # 第三轮审查的理论推演（2026-08-15）
 
+> ⚠️ 本文为第三轮中期的理论推演记录（历史存档）。文中"定稿 α=4/5"等表述
+> 指推演当时的旧定稿；**最终裁决见 EXPERIMENTS_ROUND3.md §6**（α×pool 扫描
+> val 定稿：FD001 α=6/stats、FD003 α=10/mean，SM cosine 13.007/10.581，
+> 见 FINAL_RESULTS.md）。α∈[10,15] 锚点理论对校准 FNN 成立，对 FD001 的
+> 回归均值校准 FNN 以 val 组合 RMSE 为最终裁决。
+
 ## 1. 论文隐含路由率——从表 II FLOPs 锚点反推
 
 论文加速比 = FLOPs_LM / (FLOPs_SM + FLOPs_FNN + p×(FLOPs_LM + FLOPs_R))，

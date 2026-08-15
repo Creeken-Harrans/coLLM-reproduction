@@ -16,7 +16,7 @@
 | (9) | M 矩阵（模糊特征） | membership 输出 (B,T,64) | ✅ |
 | (10) | Q*_s = 1−tanh(|ys−y*s|/α) | confidence_label | ✅ |
 | (11) | Qs = σ(W·φs(x)+b) | 模糊特征聚合 → Linear+sigmoid | ⚠️ 输入用模糊特征 M（语义依据），待 A/B 消融 |
-| (12) | Ql = R(φl(x))，展平+单层全连接 | ReflectionModel（+LN 防饱和） | ✅ |
+| (12) | Ql = R(φl(x))，展平+单层全连接 | ReflectionModel（无 LN，论文字面；LN 消融见 REVISIONS #46） | ✅ |
 | (13) | Q*_l = 1−tanh(|yl−y*l|/α) | confidence_label | ✅ |
 | (14) | L=(1/N)Σ(Qli−Q*li)² | 阶段3 MSE | ✅ |
 | (15) | z-score，统计量"整个数据集" | train 划分统计（防泄漏） | ⚠️ 更严谨，见决策 #14 |

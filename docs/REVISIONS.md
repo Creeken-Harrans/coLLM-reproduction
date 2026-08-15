@@ -516,3 +516,24 @@ Fig 6 FD003#23 面板：曲线平台 y=143、'130' 刻度标签中心 y=129、2.
 - .gitignore 增补 outputs/checkpoints/；experiments/results 清空（关键数据
   归档于 EXPERIMENTS_ROUND3.md）
 - plot_results.py 图 3/4 tight_layout 警告无碍（图已生成）
+
+## 47. 独立一致性审计修复（2026-08-16，审计代理 10 项检查全 PASS 后收尾）
+
+审计发现并修复的不一致：
+1. **plot_results.py docstring** 用法行含不存在的 `--subset/--threshold` 参数
+   → 改为实际 CLI（`[--device cuda]`，跨数据集一次生成）。
+2. **论文 FD003 CoLLM-C MAE 口径分裂**（表 II 7.04 vs 正文 7.12；此前
+   "以正文为准 7.12" 与主表 7.04 冲突）→ **第三轮统一取表 II 7.04**：
+   FINAL_RESULTS/README/plot_summary/汇总图全部一致，论文内部矛盾记录于
+   PAPER_BENCHMARKS.md。
+3. **train_conf.py docstring 陈旧 α=4/5** → 修正为 6/10，并消除
+   ReflectionConfig.alpha 死字段（extract_features 显式取 α_s/α_l，
+   重训验证数字逐位不变：12.738/12.652/12.640、10.581/10.541）。
+4. **ROUND3_THEORY.md 缺历史横幅**（"定稿 α=4/5" 为推演当时状态）→ 加横幅
+   指向最终裁决 EXPERIMENTS_ROUND3.md §6。
+5. config.py 显式写出 FD003 dropout 0.1（此前依赖默认值，可读性修复）。
+6. 消融百分比 +8.7% → +8.8%（四舍五入校正）。
+
+审计确认通过项：文档数字 vs results JSON 全部一致；config↔code 一致；
+pipeline 可复现；交叉引用无死链；evaluate 复跑逐键 bit 级一致（67 键 0 差异）；
+外层/仓库 README 表格一致；.gitignore 覆盖完整。

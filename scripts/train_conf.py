@@ -5,7 +5,7 @@
       联合 MSE 训练（公式 14），R 与 F 学习输入特征与预测结果的联合分布。
 
 配置按子集自动加载（collm.config.get_config）：
-  FD001: stats 聚合、α=4 | FD003: mean 聚合、α=5
+  FD001: stats 聚合、α=6 | FD003: mean 聚合、α=10
   训练数据 = train+val 全部窗口（浅层模块，无早停泄漏），固定 epochs（实测最优）
 
 用法: python scripts/train_conf.py --subset FD001
@@ -30,16 +30,20 @@ from collm.train_common import set_seed
 
 
 @torch.no_grad()
-def extract_features(model: CoLLM, loader: DataLoader, device: str, alpha: float):
-    """预提取 (φs, φl, ys, yl, y*)，并构造两个置信度标签（大小模型冻结）。"""
+def extract_features(model: CoLLM, loader: DataLoader, device: str,
+                     alpha_s: float, alpha_l: float):
+    """预提取 (φs, φl, ys, yl, y*)，并构造两个置信度标签（大小模型冻结）。
+
+    alpha_s/alpha_l 分别来自 cfg.fuzzy.alpha 与 cfg.reflection.alpha
+    （论文公式 10/13 同一符号 α，本实现两处显式取值，定稿同为 6/10）。"""
     fs, fl, qs_t, ql_t, ys, yl, yt = [], [], [], [], [], [], []
     model.eval()
     for x, y in loader:
         x, y = x.to(device), y.to(device)
         ys_b, feat_s = model.small(x)
         yl_b, feat_l = model.large(x)
-        qs_b = confidence_label(ys_b, y, alpha)
-        ql_b = confidence_label(yl_b, y, alpha)
+        qs_b = confidence_label(ys_b, y, alpha_s)
+        ql_b = confidence_label(yl_b, y, alpha_l)
         fs.append(feat_s.cpu()); fl.append(feat_l.cpu())
         qs_t.append(qs_b.cpu()); ql_t.append(ql_b.cpu())
         ys.append(ys_b.cpu()); yl.append(yl_b.cpu()); yt.append(y.cpu())
@@ -56,7 +60,8 @@ def main():
     cfg = get_config(args.subset)
     set_seed(cfg.seed)
     device = args.device if torch.cuda.is_available() else "cpu"
-    alpha = cfg.fuzzy.alpha
+    alpha_s = cfg.fuzzy.alpha
+    alpha_l = cfg.reflection.alpha
     ckpt_dir = Path(cfg.out_dir) / "checkpoints" / args.subset
 
     # ---- 组装完整 CoLLM 并加载前两阶段权重（全冻结）----
@@ -70,14 +75,14 @@ def main():
 
     tr_ds, val_ds, te_ds, stats = prepare_cmapss(cfg.data, args.subset, cfg.seed)
     log = setup_logger("stage3", args.subset)
-    log.info(f"配置: {args.subset} | α={alpha} | FNN {cfg.fuzzy.pool_mode} 聚合单层头 "
+    log.info(f"配置: {args.subset} | α_s={alpha_s} α_l={alpha_l} | FNN {cfg.fuzzy.pool_mode} 聚合单层头 "
              f"| 反思单层无 LN | 训练数据 = train+val | 固定 {cfg.train.conf_epochs} epochs")
     log.info("预提取特征（大小模型冻结）...")
     feats = {}
     for name, ds in [("train", tr_ds), ("val", val_ds), ("test", te_ds)]:
         ld = DataLoader(ds, batch_size=cfg.train.conf_batch, shuffle=False,
                         num_workers=0, pin_memory=True)   # num_workers=0：确定性
-        feats[name] = extract_features(model, ld, device, alpha)
+        feats[name] = extract_features(model, ld, device, alpha_s, alpha_l)
         fs, fl, _, _, _, _, _ = feats[name]
         log.info(f"  {name}: φs{tuple(fs.shape)} φl{tuple(fl.shape)}")
 

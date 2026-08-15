@@ -51,8 +51,8 @@ class LargeModelConfig:
     """阶段2 大模型 L（论文：预训练 GPT-2 + patch embedding，冻结 attention+FFN）。
 
     表 I：patch 4/stride 4、嵌入 768、特征 d_l=768。
-    层数：FD001 前 9 层 / FD003 12 层（REVISIONS #27；FLOPs 对齐论文 2.21G 口径
-    见 docs/FINAL_RESULTS.md）。
+    层数：FD001 前 9 层 / FD003 12 层（REVISIONS #27；12 层 13patch 口径对应
+    论文 One Fits All 的 2.21G，见 ROUND3_THEORY/EXPERIMENTS_ROUND3）。
     """
     model_name: str = "pretrained/gpt2"   # 项目内本地权重（gpt2 small，124M）
     patch_size: int = 4       # 论文
@@ -153,6 +153,7 @@ def get_config(subset: str) -> Config:
         cfg.reflection.alpha = 6.0
     elif subset == "FD003":
         cfg.small.n_layers = 6
+        cfg.small.dropout = 0.1
         cfg.large.n_blocks = 12
         cfg.fuzzy.pool_mode = "mean"
         cfg.fuzzy.alpha = 10.0

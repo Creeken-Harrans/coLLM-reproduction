@@ -5,7 +5,7 @@
 - 图5: 置信度区间 RMSE 与样本分布（SM 与 LM）
 - 图6: LM vs SM 预测曲线与误差对比（4 个发动机）
 
-用法: python scripts/plot_results.py --subset FD001 [--threshold 0.6 0.05]
+用法: python scripts/plot_results.py [--device cuda]（跨数据集一次生成图 3/4/5/6）
 """
 import argparse
 import json
