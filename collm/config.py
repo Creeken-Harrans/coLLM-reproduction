@@ -97,6 +97,7 @@ class TrainConfig:
     lr: float = 2e-3          # 论文表 I（Adam）
     epochs: int = 100         # 论文：100 epoch + 早停
     patience: int = 12
+    sm_sched: str = "cosine"  # SM 调度：cosine 实测 13.515→13.007（第三轮新发现）
     seed: int = 42            # 数据划分 seed（LM 5 划分实测最优，REVISIONS #44）
     num_workers: int = 2
     # 阶段3（置信度模块）——网格实测最优（REVISIONS #42）

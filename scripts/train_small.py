@@ -54,10 +54,14 @@ def main():
         model = SmallModel(cfg.small, max_len=cfg.data.window).to(device)
         n_params = sum(p.numel() for p in model.parameters())
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
+        scheduler = None
+        if cfg.train.sm_sched == "cosine":
+            from torch.optim.lr_scheduler import CosineAnnealingLR
+            scheduler = CosineAnnealingLR(optimizer, T_max=cfg.train.epochs)
         ckpt = ckpt_dir / f"small_s{seed}.pt"
         best_val = train_loop(model, tr_ld, val_ld, optimizer, criterion, device,
                               cfg.train.epochs, cfg.train.patience, f"stage1-SM-{seed}",
-                              ckpt, logger=log)
+                              ckpt, logger=log, scheduler=scheduler)
         log_metrics(log, stage="stage1", seed=seed, val_rmse=best_val,
                     params_k=n_params / 1e3)
         if best_val < best_overall:
