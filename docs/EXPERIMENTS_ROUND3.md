@@ -103,3 +103,11 @@ test A/B/C **10.581/10.552/10.659**。
 9 层冻结 + cosine（T_max=100）：val 12.983@ep4（优于 plain 13.10）但
 **test 15.582**（差于 plain 14.309）——val 幸运陷阱（同 REVISIONS #29 seed-123
 案例）。**LM 维持 plain Adam 2e-3 + 早停**（表 I 字面 + 历史最优 test）。
+
+## 10. SM FD001 大 seed 池终验（30 seeds 全景，2026-08-15 末轮）
+
+新增 24 seeds（1-25 除 7）cosine 扫描：**无一 val 低于 seed 42 的 11.384**
+（池内最优 seed 18 val 11.584→test 15.306；seed 22 val 12.095→test 13.189）。
+seed 42 全局 val-best → test 13.007 为诚实终点，seed 搜索穷尽。
+（注：seeds 1-8 的 JSON 因清扫 experiments/results 时目录竞争未落盘，val 值
+见运行日志；训练本身完成。测试值只影响归档完整性，不影响 val-best 结论。）
