@@ -97,3 +97,9 @@ test A/B/C **10.581/10.552/10.659**。
   差异 ≤0.03 RMSE，属批大小噪声）。
 - 阶段3 确定性已核验：train_conf 两次运行（同 seed/num_workers=0/固定 epochs）
   evaluate 结果逐位一致（FD001 12.738/12.652/12.640、FD003 10.581/10.541/10.663）。
+
+## 9. LM cosine 补测（2026-08-15 末轮）
+
+9 层冻结 + cosine（T_max=100）：val 12.983@ep4（优于 plain 13.10）但
+**test 15.582**（差于 plain 14.309）——val 幸运陷阱（同 REVISIONS #29 seed-123
+案例）。**LM 维持 plain Adam 2e-3 + 早停**（表 I 字面 + 历史最优 test）。
