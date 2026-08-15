@@ -13,13 +13,13 @@
 ## 阶段 1：训练小模型（论文 D 节）
 
 ```
-x ∈ R^{50×14} → 输入嵌入（14→32）→ Transformer Encoder（隐藏 64，6 层）
+x ∈ R^{50×14} → 输入嵌入（14→32）→ Transformer Encoder（隐藏 64，FD001 8 层 / FD003 6 层）
              → φs(x) ∈ R^{50×32} → 预测头（末端时间步）→ ys
 损失：MSE(ys, y*)，只更新 SM 与预测头
 ```
 - 实现：`scripts/train_small.py` → `collm/models/small_model.py`
 - 超参（表 I）：lr 2e-3、batch 256、100 epochs 早停、Adam
-- 5 seeds 训练，val 最优复制为 `small.pt`
+- 多 seeds 训练（FD001 6 / FD003 5），val 最优复制为 `small.pt`（cosine 调度，REVISIONS #45.3）
 
 ## 阶段 2：训练大模型（论文 D 节）
 
@@ -44,7 +44,7 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ Patch Embedding（patch 4 / st
 - 实现：`scripts/train_conf.py` → `collm/models/fuzzy.py`、`collm/models/reflection.py`
 - FNN：64 高斯隶属函数（表 I）→ 模糊特征（时间聚合：FD001 stats / FD003 mean）→ **单层置信度头**（公式 11 字面）→ sigmoid
 - 自反思：φl 展平 9216 → **单层全连接（无 LayerNorm，论文字面）** → sigmoid
-- α：**FD001=4 / FD003=5**（论文未给 α；网格实测最优；BANjian16 用 5）
+- α：**FD001=6 / FD003=10**（论文未给 α；第三轮 α×pool 扫描 val 定稿，EXPERIMENTS_ROUND3.md §6）
 - **训练数据 = train+val 全部窗口**（阶段3 是浅层模块，无早停泄漏问题；网格实测更优）
 - 固定 epochs（val 置信度 MSE 早停与组合目标不一致，实测固定 100ep 更优）
 - 确定性训练（num_workers=0，可复现）
@@ -64,5 +64,5 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ Patch Embedding（patch 4 / st
 
 ## 关键决策索引
 - 论文未明确处：`docs/DESIGN_DECISIONS.md`（#1-26）
-- 错误与修复：`docs/REVISIONS.md`（#1-36）
+- 错误与修复：`docs/REVISIONS.md`（#1-46）
 - 语义逐条核对：`docs/SEMANTICS_CHECK.md`

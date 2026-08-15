@@ -1,8 +1,11 @@
-# 四步走推进规划（2026-08-04 用户确认）
+# 四步走推进规划（2026-08-04 用户确认；历史存档）
+
+> ⚠️ 2026-08-15 第三轮已完成并定稿：结果与配置见 docs/FINAL_RESULTS.md。
+> 本文件为历史过程记录，保留原貌。
 
 ## 第 1 步 · 全面重训（进行中）
 - 位置编码 SM（5 seeds）→ 新结构 LM → FNN+R（分布感知初始化、α=8）→ 评估
-- 脚本：`scripts/run_round3.sh`
+- 脚本：（第三轮：experiments/final_pipeline.sh + scripts/run_pipeline.sh）
 
 ## 第 2 步 · 严格对照论文语义（第 1 步完成后执行）
 逐条核对（结果记录到 docs/SEMANTICS_CHECK.md）：
