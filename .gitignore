@@ -1,4 +1,4 @@
-outputs/checkpoints/*.pt
+outputs/checkpoints/
 outputs/logs/
 outputs/results/
 .venv/

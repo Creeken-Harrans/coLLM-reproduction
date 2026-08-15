@@ -23,21 +23,29 @@ for SUB in $SUBSETS; do
     echo "# $SUB 完整流程"
     echo "########################################"
 
-    echo "--- [阶段1] 训练小模型 S ---"
-    .venv/bin/python scripts/train_small.py --subset $SUB
+    echo "--- [阶段1] 训练小模型 S（cosine 调度，多 seed val-best，第三轮定稿）---"
+    if [ "$SUB" = "FD001" ]; then
+        .venv/bin/python scripts/train_small.py --subset $SUB --seeds 42 2024 314 123 555 99
+    else
+        .venv/bin/python scripts/train_small.py --subset $SUB --seeds 42 123 555 7 2024
+    fi
 
-    echo "--- [阶段2] 训练大模型 L ---"
-    .venv/bin/python scripts/train_large.py --subset $SUB
+    echo "--- [阶段2] 训练大模型 L（GPT-2 冻结；FD001 9层 seed42 / FD003 12层 seed123）---"
+    if [ "$SUB" = "FD001" ]; then
+        .venv/bin/python scripts/train_large.py --subset $SUB --seed 42
+    else
+        .venv/bin/python scripts/train_large.py --subset $SUB --seed 123
+    fi
 
     echo "--- [阶段3] 训练置信度模块（FNN + 自反思）---"
     .venv/bin/python scripts/train_conf.py --subset $SUB
 
     echo "--- [评估] 表 II/III 指标 ---"
     .venv/bin/python scripts/evaluate.py --subset $SUB
-
-    echo "--- [可视化] 论文图 3-6 ---"
-    .venv/bin/python scripts/plot_results.py --subset $SUB
 done
+
+echo "--- [可视化] 论文图 3-6（跨数据集，一次生成）---"
+.venv/bin/python scripts/plot_results.py
 
 echo "--- [可视化] 汇总图（论文 vs 复现 / 消融 / 加速比）---"
 .venv/bin/python scripts/plot_summary.py

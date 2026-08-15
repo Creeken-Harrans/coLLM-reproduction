@@ -24,6 +24,7 @@
 """
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -160,6 +161,7 @@ def run(args):
     crit = nn.MSELoss()
 
     best_val, best_ep, bad = float("inf"), -1, 0
+    ckpt_tmp = f"/tmp/lm_sweep_{os.getpid()}.pt"
     hist = []
     for ep in range(1, args.epochs + 1):
         model.train()
@@ -187,7 +189,7 @@ def run(args):
         improved = val_rmse < best_val
         if improved:
             best_val, best_ep = val_rmse, ep
-            torch.save(model.state_dict(), "/tmp/lm_sweep_best.pt")
+            torch.save(model.state_dict(), ckpt_tmp)
             bad = 0
         else:
             bad += 1
@@ -198,7 +200,7 @@ def run(args):
             break
 
     # 最终：加载 best-val 权重评估 test
-    model.load_state_dict(torch.load("/tmp/lm_sweep_best.pt"))
+    model.load_state_dict(torch.load(ckpt_tmp))
     model.eval()
     with torch.no_grad():
         tp, tt = [], []

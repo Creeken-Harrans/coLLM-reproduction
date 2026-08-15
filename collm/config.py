@@ -77,7 +77,7 @@ class FuzzyConfig:
     n_membership: int = 64    # 模糊函数数量（表 I：Number of fd function = 64，每维 2 个）
     pool_mode: str = "stats"  # 时间聚合：FD001=stats / FD003=mean（网格实测最优）
     hidden: Optional[int] = None   # 置信度头：None=单层（公式 11 字面，实测最优）
-    alpha: float = 4.0        # 残差缩放系数 α：FD001=4 / FD003=5（网格实测最优）
+    alpha: float = 6.0        # 残差缩放系数 α：FD001=6 / FD003=10（第三轮扫描，见 get_config）
 
 
 @dataclass
@@ -87,7 +87,7 @@ class ReflectionConfig:
     输入展平维度 = n_patch(12) × d_l(768) = 9216（窗口 50 / patch 4，末端截断）。
     """
     d_input: int = 9216
-    alpha: float = 4.0        # 与 FNN 相同 α（论文公式 10/13 同一符号）
+    alpha: float = 6.0        # 与 FNN 相同 α（论文公式 10/13 同一符号）
 
 
 @dataclass
@@ -139,7 +139,9 @@ def get_config(subset: str) -> Config:
     - SM 层数/正则：FD001 8 层 dropout 0.2（φs 泛化差，加深+正则最优）；
       FD003 6 层 dropout 0.1（已达标，保持）
     - LM 层数：FD001 9 层（12 层过拟合 test 15.7）；FD003 12 层（9 层 13.19 < 12 层 13.08）
-    - FNN 聚合/α：FD001 stats/α4；FD003 mean/α5（网格实测最优，REVISIONS #42）
+    - FNN 聚合/α：FD001 stats/α6；FD003 mean/α10（第三轮 α×pool 扫描 val 最优，
+      EXPERIMENTS_ROUND3.md §5；α∈[10,15] 锚点理论对校准 FNN 成立，FD001 的
+      FNN 回归均值校准下 τ1=0.3 触发呈阶跃——以 val 组合 RMSE 为最终裁决）
     """
     cfg = Config()
     if subset == "FD001":
@@ -147,14 +149,14 @@ def get_config(subset: str) -> Config:
         cfg.small.dropout = 0.2
         cfg.large.n_blocks = 9
         cfg.fuzzy.pool_mode = "stats"
-        cfg.fuzzy.alpha = 4.0
-        cfg.reflection.alpha = 4.0
+        cfg.fuzzy.alpha = 6.0
+        cfg.reflection.alpha = 6.0
     elif subset == "FD003":
         cfg.small.n_layers = 6
         cfg.large.n_blocks = 12
         cfg.fuzzy.pool_mode = "mean"
-        cfg.fuzzy.alpha = 5.0
-        cfg.reflection.alpha = 5.0
+        cfg.fuzzy.alpha = 10.0
+        cfg.reflection.alpha = 10.0
     else:
         raise ValueError(f"未知子集: {subset}")
     return cfg

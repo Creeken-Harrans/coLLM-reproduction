@@ -33,66 +33,56 @@ coLLM/
 │   └── models/               # small（阶段1）/ large（阶段2）/ fuzzy（FNN）/ reflection（自反思）
 ├── scripts/
 │   ├── run_pipeline.sh       # 一键完整流程（预处理→三阶段→评估→图）
-│   ├── train_small.py        # 阶段1 SM
+│   ├── train_small.py        # 阶段1 SM（cosine，多 seed val-best）
 │   ├── train_large.py        # 阶段2 LM
 │   ├── train_conf.py         # 阶段3 FNN+自反思
 │   ├── evaluate.py           # 表 II/III 指标（A/B/C/T3-09+消融+分箱+FLOPs）
 │   ├── diagnose.py           # 置信度校准诊断
-│   ├── plot_results.py       # 论文图 3-6（完全对齐论文布局）
+│   ├── plot_results.py       # 论文图 3-6（完全对齐论文布局，跨数据集一次生成）
 │   └── plot_summary.py       # 汇总图（论文 vs 复现/消融/加速比）
+├── experiments/              # 第三轮消融脚手架与裁决记录（EXPERIMENTS_ROUND3.md）
 ├── data/raw/cmapss/          # CMAPSS 原始数据（NASA 公开数据集）
 ├── data/processed/           # 预处理结果（npz + meta json，训练时自动生成）
-├── docs/                     # FINAL_RESULTS（终版）/ REVISIONS（决策史）/ DATA_FLOW / DESIGN_DECISIONS
-└── outputs/                  # 训练产物（权重/结果 JSON/图，权重不入库）
+├── docs/                     # FINAL_RESULTS / REVISIONS / ROUND3_THEORY / PLAN_ROUND3 / ...
+└── outputs/                  # 训练产物（权重/日志/结果 JSON 不入库；图入库）
 ```
 
 ## 环境依赖
 
 - Python 3.12 + PyTorch 2.9（cu128）+ transformers 5.x
 - **GPT-2 预训练权重**：从 HuggingFace 下载 `gpt2` 到 `pretrained/gpt2/`
-  （`model.safetensors` 548MB，不入库；下载后 `collm/config.py` 的
-  `LargeModelConfig.model_name = "pretrained/gpt2"` 自动加载）
+  （`model.safetensors` 548MB，不入库；`LargeModelConfig.model_name = "pretrained/gpt2"`）
 
 ## 快速开始
 
 ```bash
-# 环境（现成 venv）
-source .venv/bin/activate   # Python 3.12, torch 2.9.1+cu128, transformers 5.14.1
+source .venv/bin/activate   # 现成 venv：Python 3.12, torch 2.9.1+cu128, transformers 5.14.1
 
-# 阶段 1：SM（FD001 用 --seeds 42 2024 7 123 555；best val 复制为 small.pt）
-python scripts/train_small.py --subset FD001
+# 一键完整流程（FD001+FD003：预处理→三阶段→评估→图 3-6 + 汇总）
+bash scripts/run_pipeline.sh all
 
-# 阶段 2：LM（FD001 9 层 / FD003 12 层）
-python scripts/train_large.py --subset FD001 --lr 2e-3 --batch 256 --blocks 9
-python scripts/train_large.py --subset FD003 --lr 2e-3 --batch 256 --blocks 12
-
-# 阶段 3：FNN + 自反思（最终配置：α=4/5、单层头、无 LN、train+val、固定 epochs）
-python scripts/train_conf.py --subset FD001 --pool-mode stats --alpha 4 --blocks 9 --hidden 0 --fixed --use-val-train
-python scripts/train_conf.py --subset FD003 --pool-mode mean --alpha 5 --blocks 12 --hidden 0 --fixed --use-val-train
-
-# 评估（论文 A/B/C/T3-09 阈值 + 消融 + 置信度分箱 + FLOPs）
-python scripts/evaluate.py --subset FD001 --pool-mode stats --alpha 4 --blocks 9 --hidden 0
-python scripts/evaluate.py --subset FD003 --pool-mode mean --alpha 5 --blocks 12 --hidden 0
-
-# 诊断（Qs/Ql 校准、隶属函数）
-python scripts/diagnose.py --subset FD001 --pool-mode stats
-
-# 可视化（论文图 3-6 风格 → outputs/figures/）
-python scripts/plot_results.py --subset FD001 --pool-mode stats --blocks 9 --hidden 0
-python scripts/plot_results.py --subset FD003 --pool-mode mean --blocks 12 --hidden 0
-
-# 汇总图（论文 vs 复现 / 消融 / 加速比）
-python scripts/plot_summary.py
+# 或分步：
+python scripts/train_small.py  --subset FD001   # 阶段1：cosine × 多 seed val-best
+python scripts/train_large.py  --subset FD001   # 阶段2：GPT-2 9 层冻结（seed 42）
+python scripts/train_conf.py   --subset FD001   # 阶段3：α=6/stats（config 自动加载）
+python scripts/evaluate.py     --subset FD001   # 表 II/III + 消融 + 分箱 + FLOPs
+python scripts/plot_results.py                 # 图 3-6（跨数据集一次生成）
+python scripts/plot_summary.py                 # 汇总图
 ```
 
-## 最终结果（2026-08-04 定稿，完整重训实测）
+所有子集差异（SM 层数/LM 层数/α/聚合方式）集中在 `collm/config.py::get_config`，
+脚本只需 `--subset`。
+
+## 最终结果（2026-08-15 第三轮定稿，完整重训实测）
 
 | 配置 | 论文 FD001 | 复现 FD001 | 论文 FD003 | 复现 FD003 |
 |---|---|---|---|---|
-| CoLLM-A | 12.45/9.13/3.88× | **12.73/9.38**/1.19× | 11.26/7.42/14.54× | **11.15/6.43**/101.6× ✓ |
-| CoLLM-B | 12.40/8.98/2.08× | **12.79/9.46**/1.06× | 11.11/7.23/2.29× | **11.07/6.38**/2.62× ✓ |
-| CoLLM-C | 12.33/8.86/1.26× | **12.75/9.41**/1.00× | 11.11/7.04/1.57× | **11.02/6.39**/1.98× ✓ |
+| CoLLM-A | 12.45/9.13/3.88× | **12.738/9.677**/1.35× | 11.26/7.42/14.54× | **10.581/6.372**/462× ✓ |
+| CoLLM-B | 12.40/8.98/2.08× | **12.652/9.652**/1.09× | 11.11/7.23/2.29× | **10.541/6.331**/14.09× ✓ |
+| CoLLM-C | 12.33/8.86/1.26× | **12.640/9.623**/1.01× | 11.11/7.04/1.57× | **10.663/6.393**/2.51× ✓ |
 
-FD003 全配置（RMSE/MAE/加速比）超过论文；FD001 差论文 0.33-0.45
-（根因 LM 强度，证据链详见 docs/FINAL_RESULTS.md 差距说明）。
-图集完全对齐论文（图3/6 跨数据集 4 面板、图4 双阈值、图5 橙柱蓝虚线）。
+- **FD003 全配置超过论文**（RMSE 低 0.35-0.68、MAE 低 0.65-1.09；消融/单调性全通过）
+- **FD001 差论文 RMSE 0.25-0.31**——根因 LM 14.309 vs 论文 12.34：60+ 变体
+  消融后判定为文档化复现边界（第三方复现 14.66 互证），详见
+  docs/FINAL_RESULTS.md 差距说明与 docs/EXPERIMENTS_ROUND3.md。
+- 图集完全对齐论文（图3/6 跨数据集 4 面板、图4 双阈值、图5 橙柱蓝虚线）。

@@ -99,3 +99,19 @@
 | α=10-15 使 FD003 组合退化 | α 按子集分化（FD003 用 10、FD001 用 12-15），val 裁决 |
 | OCR 图件代理失败 | 手工 easyocr Fig 5 关键读数 |
 | GPU OOM（并发队列） | 已改为串行队列 + 每进程独立 ckpt 路径（fa112b3 后修复） |
+
+## 6. 计划执行终态（2026-08-15 收尾）
+
+- 阶段 A（SM）✅：cosine 双数据集采纳（13.515→13.007、11.783→11.470）；
+  多 seed val-best 入生产（FD001 6 seeds / FD003 5 seeds；FD003 seed 2024
+  val 9.562 → test 10.581）
+- 阶段 B（LM）✅：消融矩阵全收束，9/12 层冻结定稿；FD003 LM 队列取消
+  （FD003 组合已超论文，边际价值低——记录于 EXPERIMENTS_ROUND3.md）
+- 阶段 C（阶段3）✅：α×pool 扫描 val 定稿 FD001 α6/stats、FD003 α10/mean；
+  反思 ±LN 消融裁决无 LN
+- 阶段 D（重训验收）✅：清空 outputs 全流程重训；FD003 全配置超论文、
+  FD001 差 0.25-0.31（文档化边界）
+- 阶段 E（文档收尾）✅：FINAL_RESULTS/README/REVISIONS #45-46/EXPERIMENTS_ROUND3
+  同步；experiments/results 清空归档；run_pipeline.sh 一致性修复
+- 风险处置：队列 II 部分取消（已证伪）；OCR 图件代理中断后自跑 easyocr+
+  像素测量补位（Fig 5 CDF、Fig 4 反思数、Fig 6 截断值）；GPU OOM 改为串行队列
