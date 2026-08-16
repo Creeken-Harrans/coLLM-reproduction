@@ -5,7 +5,7 @@
       联合 MSE 训练（公式 14），R 与 F 学习输入特征与预测结果的联合分布。
 
 配置按子集自动加载（collm.config.get_config）：
-  FD001: stats 聚合、α=6 | FD003: mean 聚合、α=10
+  FD001: stats 聚合、α=6 | FD003: mean 聚合、α=6
   训练数据 = train+val 全部窗口（浅层模块，无早停泄漏），固定 epochs（实测最优）
 
 用法: python scripts/train_conf.py --subset FD001
@@ -35,7 +35,7 @@ def extract_features(model: CoLLM, loader: DataLoader, device: str,
     """预提取 (φs, φl, ys, yl, y*)，并构造两个置信度标签（大小模型冻结）。
 
     alpha_s/alpha_l 分别来自 cfg.fuzzy.alpha 与 cfg.reflection.alpha
-    （论文公式 10/13 同一符号 α，本实现两处显式取值，定稿同为 6/10）。"""
+    （论文公式 10/13 同一符号 α，本实现两处显式取值，定稿 FD001=6 / FD003=6）。"""
     fs, fl, qs_t, ql_t, ys, yl, yt = [], [], [], [], [], [], []
     model.eval()
     for x, y in loader:

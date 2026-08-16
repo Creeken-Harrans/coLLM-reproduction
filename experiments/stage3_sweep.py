@@ -76,8 +76,8 @@ def main():
     tr_ds, val_ds, te_ds, stats = prepare_cmapss(cfg.data, args.subset, cfg.seed)
 
     @torch.no_grad()
-    def extract(ds, batch=1024):
-        ld = DataLoader(ds, batch_size=batch, shuffle=False, num_workers=0)
+    def extract(ds):
+        ld = DataLoader(ds, batch_size=cfg.train.conf_batch, shuffle=False, num_workers=0)
         fs, fl, ys, yl, yt = [], [], [], [], []
         for x, y in ld:
             x = x.to(device)

@@ -77,7 +77,7 @@ class FuzzyConfig:
     n_membership: int = 64    # 模糊函数数量（表 I：Number of fd function = 64，每维 2 个）
     pool_mode: str = "stats"  # 时间聚合：FD001=stats / FD003=mean（网格实测最优）
     hidden: Optional[int] = None   # 置信度头：None=单层（公式 11 字面，实测最优）
-    alpha: float = 6.0        # 残差缩放系数 α：FD001=6 / FD003=10（第三轮扫描，见 get_config）
+    alpha: float = 6.0        # 残差缩放系数 α：FD001=6 / FD003=6（第三轮扫描，见 get_config）
 
 
 @dataclass

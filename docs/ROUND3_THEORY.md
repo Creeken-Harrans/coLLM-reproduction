@@ -2,7 +2,7 @@
 
 > ⚠️ 本文为第三轮中期的理论推演记录（历史存档）。文中"定稿 α=4/5"等表述
 > 指推演当时的旧定稿；**最终裁决见 EXPERIMENTS_ROUND3.md §6**（α×pool 扫描
-> val 定稿：FD001 α=6/stats、FD003 α=10/mean，SM cosine 13.007/10.581，
+> val 定稿：FD001 α=6/stats、FD003 α=6/mean，SM cosine 13.007/10.581，
 > 见 FINAL_RESULTS.md）。α∈[10,15] 锚点理论对校准 FNN 成立，对 FD001 的
 > 回归均值校准 FNN 以 val 组合 RMSE 为最终裁决。
 

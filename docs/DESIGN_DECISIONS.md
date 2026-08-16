@@ -1,5 +1,5 @@
 > ⚠️ 决策 #8/#22/#24（α=15→8、阶段3 lr、α=8）已被第三轮修订：
-> 定稿 α=6（FD001）/10（FD003），见 EXPERIMENTS_ROUND3.md §6 与 REVISIONS #45；
+> 定稿 α=6（FD001 stats / FD003 mean），见 EXPERIMENTS_ROUND3.md §6 与 REVISIONS #45/#48；
 > 反思无 LN 定稿（#21 反转，REVISIONS #42/#46）；SM 调度改 cosine（#23 补充，REVISIONS #45.3）。
 
 # CoLLM 复现设计决策记录
