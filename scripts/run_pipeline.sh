@@ -30,12 +30,8 @@ for SUB in $SUBSETS; do
         .venv/bin/python scripts/train_small.py --subset $SUB --seeds 42 123 555 7 2024
     fi
 
-    echo "--- [阶段2] 训练大模型 L（GPT-2 冻结；FD001 9层 seed42 / FD003 12层 seed123）---"
-    if [ "$SUB" = "FD001" ]; then
-        .venv/bin/python scripts/train_large.py --subset $SUB --seed 42
-    else
-        .venv/bin/python scripts/train_large.py --subset $SUB --seed 123
-    fi
+    echo "--- [阶段2] 训练大模型 L（GPT-2 冻结；统一单 seed 42 协议，REVISIONS #48）---"
+    .venv/bin/python scripts/train_large.py --subset $SUB --seed 42
 
     echo "--- [阶段3] 训练置信度模块（FNN + 自反思）---"
     .venv/bin/python scripts/train_conf.py --subset $SUB

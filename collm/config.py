@@ -139,9 +139,11 @@ def get_config(subset: str) -> Config:
     - SM 层数/正则：FD001 8 层 dropout 0.2（φs 泛化差，加深+正则最优）；
       FD003 6 层 dropout 0.1（已达标，保持）
     - LM 层数：FD001 9 层（12 层过拟合 test 15.7）；FD003 12 层（9 层 13.19 < 12 层 13.08）
-    - FNN 聚合/α：FD001 stats/α6；FD003 mean/α10（第三轮 α×pool 扫描 val 最优，
-      EXPERIMENTS_ROUND3.md §5；α∈[10,15] 锚点理论对校准 FNN 成立，FD001 的
-      FNN 回归均值校准下 τ1=0.3 触发呈阶跃——以 val 组合 RMSE 为最终裁决）
+    - FNN 聚合/α：FD001 stats/α6；FD003 mean/α6（第三轮 α×pool 扫描 val 最优，
+      EXPERIMENTS_ROUND3.md；扫描与 train_conf 配方逐位一致后复选，
+      REVISIONS #48——Ql 饱和悬崖对训练配方敏感）
+    - LM seed 协议：统一单 seed 42（LM 的 val-best 已证不可靠——val 幸运陷阱
+      REVISIONS #29/#46.2/#48；SM 才用多 seed val-best）
     """
     cfg = Config()
     if subset == "FD001":
@@ -156,8 +158,8 @@ def get_config(subset: str) -> Config:
         cfg.small.dropout = 0.1
         cfg.large.n_blocks = 12
         cfg.fuzzy.pool_mode = "mean"
-        cfg.fuzzy.alpha = 10.0
-        cfg.reflection.alpha = 10.0
+        cfg.fuzzy.alpha = 6.0
+        cfg.reflection.alpha = 6.0
     else:
         raise ValueError(f"未知子集: {subset}")
     return cfg

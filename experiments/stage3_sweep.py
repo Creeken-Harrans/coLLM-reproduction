@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 
 from collm.config import get_config
 from collm.data import prepare_cmapss
@@ -58,7 +58,6 @@ def main():
     ap.add_argument("--alphas", type=float, nargs="+", default=[6, 8, 10, 12, 15])
     ap.add_argument("--pools", nargs="+", default=["mean", "stats"])
     ap.add_argument("--epochs", type=int, default=100)
-    ap.add_argument("--lr", type=float, default=1e-3)
     args = ap.parse_args()
 
     cfg = get_config(args.subset)
@@ -98,14 +97,16 @@ def main():
             cfg.fuzzy.pool_mode = pool
             cfg.fuzzy.alpha = alpha
             cfg.reflection.alpha = alpha
-            set_seed(cfg.seed)
+            set_seed(cfg.seed)   # 每组合独立 seed：与 train_conf 完全一致
             init_mu, init_sigma = FuzzyAgent.init_from_features(
                 ftr[0], cfg.fuzzy.n_membership // cfg.fuzzy.d_input)
             fuzzy = FuzzyAgent(cfg.fuzzy, init_mu=init_mu, init_sigma=init_sigma).to(device)
             refl = ReflectionModel(cfg.reflection).to(device)
-            opt = torch.optim.Adam(list(fuzzy.parameters()) + list(refl.parameters()), lr=args.lr)
+            opt = torch.optim.Adam(list(fuzzy.parameters()) + list(refl.parameters()),
+                                   lr=cfg.train.conf_lr)
             crit = torch.nn.MSELoss()
-            # 训练数据 = train+val（与定稿一致）
+            # 训练数据 = train+val；DataLoader 构造与 train_conf 逐位一致
+            # （batch/每 epoch 重洗/num_workers=0——Ql 饱和悬崖对配方敏感，REVISIONS #48）
             qs_t = confidence_label(ftr[2], ftr[4], alpha)
             ql_t = confidence_label(ftr[3], ftr[4], alpha)
             qs_v = confidence_label(fva[2], fva[4], alpha)
@@ -113,12 +114,14 @@ def main():
             F = torch.cat([ftr[0], fva[0]])
             L = torch.cat([ftr[1], fva[1]])
             QS = torch.cat([qs_t, qs_v]); QL = torch.cat([ql_t, ql_v])
-            perm = torch.randperm(len(F))
+            loader = DataLoader(TensorDataset(F, L, QS, QL),
+                                batch_size=cfg.train.conf_batch, shuffle=True,
+                                num_workers=0)
             fuzzy.train(); refl.train()
             for ep in range(args.epochs):
-                for i in range(0, len(F), 2048):
-                    idx = perm[i:i + 2048]
-                    f_, l_, qs_, ql_ = F[idx].to(device), L[idx].to(device), QS[idx].to(device), QL[idx].to(device)
+                for f_, l_, qs_, ql_ in loader:
+                    f_, l_, qs_, ql_ = (f_.to(device), l_.to(device),
+                                        qs_.to(device), ql_.to(device))
                     opt.zero_grad(set_to_none=True)
                     loss = crit(fuzzy(f_), qs_) + crit(refl(l_), ql_)
                     loss.backward(); opt.step()
