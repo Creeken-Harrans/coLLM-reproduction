@@ -1484,7 +1484,7 @@ wheels = [
 ]
 
 [[package]]
-name = "rag-test"
+name = "collm-repro"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

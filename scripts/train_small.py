@@ -1,10 +1,11 @@
 """阶段1：训练小模型 S（论文：端到端最小化预测误差，只更新 S 与预测头）。
 
 配置按子集自动加载（collm.config.get_config）：
-  FD001: 8 层 Transformer Encoder、dropout 0.2、lr 2e-3、batch 256
-  FD003: 6 层、dropout 0.1（同表 I 配置）
+  FD001: 8 层 Transformer Encoder、dropout 0.2；FD003: 6 层、dropout 0.1（同表 I 配置）
+  cosine 调度 + lr 2e-3 + batch 256（cosine 13.515→13.007，REVISIONS #45.3）
+  多 seed val-best（--seeds；数据划分 seed 固定 42）
 
-用法: python scripts/train_small.py --subset FD001
+用法: python scripts/train_small.py --subset FD001 [--seeds 42 2024 ...]
 """
 import argparse
 import shutil

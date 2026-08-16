@@ -137,7 +137,7 @@ def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
     tr_x = (tr_x - mu) / sigma
     te_x = (te_x - mu) / sigma
 
-    # ---- RUL 截断（论文未提，默认不截断）----
+    # ---- RUL 截断（cap=125 分段线性：像素级证实 + 文献 [26] 惯例，REVISIONS #45.4）----
     if cfg.rul_cap is not None:
         tr_y = np.minimum(tr_y, cfg.rul_cap)
         te_y = np.minimum(te_y, cfg.rul_cap)

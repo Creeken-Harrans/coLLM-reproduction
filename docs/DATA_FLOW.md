@@ -18,7 +18,7 @@ x ∈ R^{50×14} → 输入嵌入（14→32）→ Transformer Encoder（隐藏 6
 损失：MSE(ys, y*)，只更新 SM 与预测头
 ```
 - 实现：`scripts/train_small.py` → `collm/models/small_model.py`
-- 超参（表 I）：lr 2e-3、batch 256、100 epochs 早停、Adam
+- 超参（表 I）：lr 2e-3、batch 256、100 epochs 早停、Adam、cosine 调度（REVISIONS #45.3）
 - 多 seeds 训练（FD001 6 / FD003 5），val 最优复制为 `small.pt`（cosine 调度，REVISIONS #45.3）
 
 ## 阶段 2：训练大模型（论文 D 节）

@@ -2,8 +2,9 @@
 
 配置按子集自动加载（collm.config.get_config）：
   FD001: GPT-2 前 9 层 | FD003: 12 层；patch 4/stride 4；lr 2e-3、batch 256
+  统一单 seed 42 协议（LM 的 val-best 不可靠，REVISIONS #48）
 
-用法: python scripts/train_large.py --subset FD001
+用法: python scripts/train_large.py --subset FD001 [--seed 42]
 """
 import argparse
 import sys

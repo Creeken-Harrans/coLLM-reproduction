@@ -1,7 +1,7 @@
 [project]
-name = "rag-test"
+name = "collm-repro"
 version = "0.1.0"
-description = "Qwen3-4B-Instruct-2507 llama.cpp 本地部署与 RAG 测试环境"
+description = "CoLLM (IEEE TFS 2026) 复现：模糊决策智能体 + 自反思的大小模型协同 RUL 预测（依赖为共享 venv 超集，核心仅需 torch/transformers/numpy/matplotlib）"
 requires-python = ">=3.12"
 dependencies = [
     "easyocr>=1.7.2",
