@@ -100,12 +100,16 @@ def plot_ablation():
                     ha="center", fontsize=7.5)
         ax2 = ax.twinx()
         ax2.plot(x, correct, "D-", color=C_ACC, ms=4, lw=1.2, label="反思正确率(%)")
+        if subset == "FD003":
+            ax2.annotate("A 无触发（0 反思样本）", xy=(0, 0), xytext=(0.15, 12),
+                         fontsize=7, color="#555555")
         ax2.axhline(70, ls="--", color="#999999", lw=0.8)
         ax2.text(3.35, 71, "论文标准 70%", fontsize=7, color="#555")
         ax2.set_ylabel("反思正确率 (%)"); ax2.set_ylim(0, 100)
         ax.legend(fontsize=8, loc="upper left")
         ax2.legend(fontsize=8, loc="upper right")
-    fig.suptitle("自反思消融（论文：删除后 RMSE 变差 0.3-1.1%）", y=1.02)
+    fig.suptitle("自反思消融（论文：删除后 RMSE 变差 0.3-1.1%；复现 8.8-22.7%——"
+                 "LM 弱于论文 → 融合收益更大）", y=1.02, fontsize=11)
     fig.tight_layout()
     fig.savefig("outputs/figures/summary_ablation.png", bbox_inches="tight")
     plt.close(fig)
@@ -127,12 +131,15 @@ def plot_speedup():
         ax.bar(x + 0.3, our, 0.6, label=f"{subset} 复现" if i == 0 else None,
                color=C_OURS, edgecolor="#333333", lw=0.5)
         for xx, v in zip(x - 0.3, pp):
-            ax.text(xx, v * 1.05, f"{v:.1f}×", ha="center", fontsize=8)
+            ax.text(xx, v * 1.05, f"{v:.2f}×" if v < 100 else f"{v:.0f}×",
+                    ha="center", fontsize=8)
         for xx, v in zip(x + 0.3, our):
-            ax.text(xx, v * 1.05, f"{v:.0f}×", ha="center", fontsize=8)
+            ax.text(xx, v * 1.05, f"{v:.2f}×" if v < 100 else f"{v:.0f}×",
+                    ha="center", fontsize=8)
     ax.set_xticks([1, 5.5]); ax.set_xticklabels(["FD001", "FD003"])
     ax.set_ylabel("FLOPs 加速比（×，对数）"); ax.set_yscale("log")
-    ax.set_title("加速比对比（复现触发率低于论文 → 加速更大）")
+    ax.set_title("加速比对比（FD001：复现触发率更高→加速更小；FD003：触发率更低→加速更大——"
+                 "均为模型强度差的诚实后果）", fontsize=9)
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig("outputs/figures/summary_speedup.png", bbox_inches="tight")
