@@ -109,8 +109,9 @@
   （FD003 组合已超论文，边际价值低——记录于 EXPERIMENTS_ROUND3.md）
 - 阶段 C（阶段3）✅：α×pool 扫描 val 定稿 FD001 α6/stats、FD003 α10/mean；
   反思 ±LN 消融裁决无 LN
-- 阶段 D（重训验收）✅：清空 outputs 全流程重训；FD003 全配置超论文、
-  FD001 差 0.25-0.31（文档化边界）
+- 阶段 D（重训验收）✅：清空 outputs 全流程重训；FD003 全配置超论文
+  （10.581/10.631/10.726 vs 11.26/11.11/11.11）、FD001 差 0.25-0.31（文档化边界）；
+  LM seed 协议统一单 42、Ql 悬崖配方修复（REVISIONS #48）
 - 阶段 E（文档收尾）✅：FINAL_RESULTS/README/REVISIONS #45-46/EXPERIMENTS_ROUND3
   同步；experiments/results 清空归档；run_pipeline.sh 一致性修复
 - 风险处置：队列 II 部分取消（已证伪）；OCR 图件代理中断后自跑 easyocr+

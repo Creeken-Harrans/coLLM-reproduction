@@ -69,15 +69,17 @@ cosine 同样采纳（val 与 test 双优）。
 | RUL cap | 125 | 不变 | 像素测量确认 |
 | 评估口径 | 全窗口 | 不变 | Fig 4/表 III 双证 |
 
-## 6. 阶段3 α×pool 扫描终表（val 规则定稿）
+## 6. 阶段3 α×pool 扫描终表（val 规则定稿；规范配方后复选，REVISIONS #48）
 
-**FD001（SM 13.007 / LM 14.309）**：α6/stats val_score **33.62** 最优 →
-test A/B/C **12.762/12.663/12.641**（α8/stats 33.73 次优）。α≥8 时 τ1=0.3
-触发率骤降为 0-8%（FNN 回归均值校准下 Qs 分布整体上移），α6 触发 72%
-与融合机制协同最优。
-**FD003（SM 10.581 / LM 12.915）**：α10/mean val_score **28.81** 最优 →
-test A/B/C **10.581/10.552/10.659**。
-定稿：**FD001 α=6/stats；FD003 α=10/mean**（config.py::get_config）。
+**FD001（SM 13.007 / LM 14.309）**：α6/stats val_score **33.63** 最优 →
+test A/B/C **12.763/12.662/12.642**（α8/stats 33.66 次优；α5/α7 邻域证实
+α6 严格最优）。α≥8 时 τ1=0.3 触发率骤降（FNN 回归均值校准下 Qs 上移），
+α6 触发 71% 与融合机制协同最优。
+**FD003（SM 10.581 / LM 13.282）**：α6/mean val_score **29.08** 最优 →
+test A/B/C **10.581/10.633/10.728**（α5/mean 29.08 次优、α7/mean 30.97）。
+定稿：**FD001 α=6/stats；FD003 α=6/mean**（config.py::get_config）。
+注：LM 统一 seed 42 后（12.915→13.282）FD003 复选；旧版扫描的
+α10/mean 与 stats/α7 均为"扫描配方≠train_conf 配方"时期的产物，作废。
 
 ## 7. 反思 ±LayerNorm 消融（α 定稿后，REVISIONS #46）
 
@@ -92,11 +94,15 @@ test A/B/C **10.581/10.552/10.659**。
 
 ## 8. 口径说明（一致性）
 
-- §6 扫描表数字为**选择阶段**估值（扫描脚本 batch 2048）；**权威最终数字以
-  docs/FINAL_RESULTS.md 为准**（canonical train_conf.py batch 1024 + evaluate.py，
-  差异 ≤0.03 RMSE，属批大小噪声）。
+- 权威最终数字以 docs/FINAL_RESULTS.md 为准（canonical train_conf.py +
+  evaluate.py）。§6 扫描表数字为 val 选择阶段的估值（与 train_conf 同配方，
+  差异 ≤0.03 RMSE 属 DataLoader RNG 顺序噪声）。
+- **Ql 饱和悬崖**：单层反思 FCN（公式 12 字面）对训练批次/重洗顺序敏感，
+  存在两种机制态（Ql 饱和→触发即融合；Ql 校准→选择性接受弱 LM）。曾导致
+  扫描（batch 2048/单 perm）与生产（batch 1024/每 epoch 重洗）估值相差 0.8-1.1。
+  修复：扫描配方与 train_conf 逐位一致后复选（REVISIONS #48.2）。
 - 阶段3 确定性已核验：train_conf 两次运行（同 seed/num_workers=0/固定 epochs）
-  evaluate 结果逐位一致（FD001 12.738/12.652/12.640、FD003 10.581/10.541/10.663）。
+  evaluate 结果逐位一致（FD001 12.738/12.652/12.640、FD003 10.581/10.631/10.726）。
 
 ## 9. LM cosine 补测（2026-08-15 末轮）
 
