@@ -43,7 +43,7 @@ coLLM/
 ├── experiments/              # 第三轮消融脚手架与裁决记录（EXPERIMENTS_ROUND3.md）
 ├── data/raw/cmapss/          # CMAPSS 原始数据（NASA 公开数据集）
 ├── data/processed/           # 预处理结果（npz + meta json，训练时自动生成）
-├── docs/                     # FINAL_RESULTS / REVISIONS / ROUND3_THEORY / PLAN_ROUND3 / ...
+├── docs/                     # 文档索引 docs/README.md；权威结果 FINAL_RESULTS.md
 └── outputs/                  # 训练产物（权重/日志/结果 JSON 不入库；图入库）
 ```
 
@@ -85,4 +85,7 @@ python scripts/plot_summary.py                 # 汇总图
 - **FD001 差论文 RMSE 0.25-0.31**——根因 LM 14.309 vs 论文 12.34：60+ 变体
   消融后判定为文档化复现边界（第三方复现 14.66 互证），详见
   docs/FINAL_RESULTS.md 差距说明与 docs/EXPERIMENTS_ROUND3.md。
-- 图集完全对齐论文（图3/6 跨数据集 4 面板、图4 双阈值、图5 橙柱蓝虚线）。
+- 图集按论文图件规范逐项核对（REVISIONS #49，经 OCR 复核）：
+  图3 真实+SM 双曲线+不确定度/误差柱；图4 FD003 表 III 双阈值、仅反思样本
+  （复现 11717/5785 如实标注）；图5 橙柱蓝虚线+Ql 饱和如实标注；
+  图6 LM/SM/真实三曲线；汇总图 3 张。
