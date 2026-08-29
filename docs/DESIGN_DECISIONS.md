@@ -1,6 +1,9 @@
 > ⚠️ 决策 #8/#22/#24（α=15→8、阶段3 lr、α=8）已被第三轮修订：
 > 定稿 α=6（FD001 stats / FD003 mean），见 EXPERIMENTS_ROUND3.md §6 与 REVISIONS #45/#48；
 > 反思无 LN 定稿（#21 反转，REVISIONS #42/#46）；SM 调度改 cosine（#23 补充，REVISIONS #45.3）。
+> ⚠️ 第四轮（2026-08-29）修订：#9/#18（LM 位置嵌入改为 OFA 官方固定正弦 + inputs_embeds）、
+> #26（LM 层数改为 FD001/FD003 均 12 层）已被 REVISIONS #50 推翻——LM 输入编码改回
+> One Fits All 官方 GPT4TS 结构（Conv1d TokenEmbedding + 固定正弦 + ReplicationPad 13 patch）。
 
 # CoLLM 复现设计决策记录
 

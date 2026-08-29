@@ -25,7 +25,6 @@ class CoLLM(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.small = SmallModel(cfg.small, max_len=cfg.data.window)
-        self.large = LargeModel(cfg.large, n_sensors=cfg.data.n_sensors,
-                                window=cfg.data.window)
+        self.large = LargeModel(cfg.large, n_sensors=cfg.data.n_sensors)
         self.fuzzy = FuzzyAgent(cfg.fuzzy)
         self.reflection = ReflectionModel(cfg.reflection)

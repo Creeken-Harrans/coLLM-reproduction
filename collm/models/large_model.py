@@ -9,10 +9,11 @@
 阶段2：仅训练 patch 嵌入、位置嵌入(wpe)、LN 与预测头（冻结 attention+FFN，
 OFA 官方：'ln' 与 'wpe' 可训练）。
 
-关键修正（2026-08-29 复现突破）:
+关键修正（2026-08-29 复现突破，REVISIONS #50）:
   - 输入编码由「Linear(56→768) + wpe 初始化可学习位置」改为 One Fits All 官方的
-    「Conv1d TokenEmbedding + 固定正弦位置嵌入」——FD001 LM test 14.309 → 13.45
-    （12 层，详见 experiments/ 与 docs/REVISIONS.md 新增条目）。
+    「Conv1d TokenEmbedding + 固定正弦位置嵌入」——FD001 LM test 14.309 → 13.923、
+    FD003 13.282 → 11.425（均 12 层，确定性训练）。注：GPT2Model inputs_embeds
+    路径内部仍含可训练 wpe（OFA 官方行为），外部正弦位置嵌入为固定 buffer。
 """
 import math
 
@@ -60,13 +61,11 @@ class PositionalEmbedding(nn.Module):
 
 
 class LargeModel(nn.Module):
-    def __init__(self, cfg: LargeModelConfig, n_sensors: int = 14, window: int = 50):
+    def __init__(self, cfg: LargeModelConfig, n_sensors: int = 14):
         super().__init__()
         self.cfg = cfg
         self.patch_size = cfg.patch_size
         self.stride = cfg.patch_stride
-        # 13 个 patch：OFA 官方 patch_num = (seq-patch)//stride + 1，ReplicationPad 后再 +1
-        self.n_patch = (window - cfg.patch_size) // cfg.patch_stride + 1 + 1
 
         # GPT-2 backbone（本地权重），随后冻结
         self.gpt2 = GPT2Model.from_pretrained(cfg.model_name)
@@ -102,10 +101,11 @@ class LargeModel(nn.Module):
         x = x.permute(0, 2, 1)                          # (B, C, T)
         x = F.pad(x, (0, self.stride), mode="replicate")  # (B, C, T+stride)
         x = x.unfold(dimension=-1, size=self.patch_size, step=self.stride)
-        # (B, C, n_patch, patch_size)
+        # (B, C, n_patch, patch_size)；n_patch 取自 unfold 实际输出（窗口 50/patch 4 → 13）
         B, C = x.shape[0], x.shape[1]
-        x = x.reshape(B, C, self.n_patch, self.patch_size).permute(0, 2, 1, 3)
-        return x.reshape(B, self.n_patch, self.patch_size * C)
+        x = x.reshape(B, C, -1, self.patch_size).permute(0, 2, 1, 3)
+        n_patch = x.shape[1]
+        return x.reshape(B, n_patch, self.patch_size * C)
 
     def forward(self, x: torch.Tensor, return_feat: bool = True):
         """x: (B, T, 14) → (yl: (B,), φl: (B, n_patch, 768))"""

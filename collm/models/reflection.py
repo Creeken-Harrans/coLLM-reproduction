@@ -1,8 +1,8 @@
 """自反思模型 R（论文公式 12-14：φl 展平 + 单层全连接 → Ql）。
 
 论文要点:
-  - 输入为大模型潜在特征 φl(x) ∈ R^{t×d_l}（d_l=768，t=12 patch）；
-  - 沿时间维度展平为静态一维特征向量（9216 维），经单层全连接投影为
+  - 输入为大模型潜在特征 φl(x) ∈ R^{t×d_l}（d_l=768，t=13 patch，ReplicationPad 尾补）；
+  - 沿时间维度展平为静态一维特征向量（9984 = 13×768 维），经单层全连接投影为
     置信度标量 Q_l（公式 12）；
   - 监督信号基于大模型预测误差：Q*_l = 1 - tanh(|y_l - y*| / α)（公式 13）；
   - 训练目标 MSE: L = (1/N) Σ (Q_li - Q*_li)²（公式 14）。
@@ -19,7 +19,7 @@ class ReflectionModel(nn.Module):
         self.cfg = cfg
         self.use_ln = use_ln
         # 单层全连接投影（论文公式 12）：展平 t×d_l → 标量
-        # 可选 LayerNorm：φl 高维特征范数大 → 无 LN 时 sigmoid 饱和（REVISIONS #46/#50）
+        # 可选 LayerNorm：φl 高维特征范数大 → 无 LN 时 sigmoid 饱和（REVISIONS #52）
         if use_ln:
             self.ln = nn.LayerNorm(cfg.d_input)
         self.proj = nn.Linear(cfg.d_input, 1)

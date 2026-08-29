@@ -1,4 +1,4 @@
-"""CoLLM 复现全局配置 — 定稿值（2026-08-04 最终）。
+"""CoLLM 复现全局配置 — 定稿值（2026-08-29 第四轮）。
 
 论文: CoLLM: Industrial Large-Small Model Collaboration With Fuzzy
 Decision-Making Agent and Self-Reflection (IEEE TFS 2026).
@@ -21,8 +21,9 @@ class DataConfig:
     removed_sensors: tuple = (1, 5, 6, 10, 16, 18, 19)
     n_sensors: int = 14       # 21 - 7
     val_ratio: float = 0.2    # 论文：20% 作为验证集（按 unit 划分，防泄漏）
-    norm_mode: str = "train"  # z-score 统计量范围：仅 val 划分外的训练窗口
-                              # （'entire dataset' 三种解读实测最优，REVISIONS #30）
+    norm_mode: str = "train"  # z-score 统计量范围：仅 val 划分外的训练窗口（防泄漏定稿）
+                              # 可选值 'all_train'/'entire' 含 val/test 统计量，属泄漏，
+                              # 仅历史对照（REVISIONS #30 实测 'train' 最优），勿启用
     rul_cap: Optional[float] = 125   # RUL 截断（分段线性；论文指标反推 + 文献 [26] 惯例）
 
 
@@ -59,11 +60,7 @@ class LargeModelConfig:
     patch_stride: int = 4     # 论文
     d_embed: int = 768        # patch → 768 维（GPT-2 嵌入维）
     n_blocks: int = 12        # 子集相关：FD001=12、FD003=12（见 get_config）
-    freeze_backbone: bool = True   # 冻结 attention+FFN（论文 D 节）
-    learnable_ln_f: bool = True    # ln_f 与逐层 LN 可微调（论文冻结范围仅 attention+FFN）
-    pool_mode: str = "last"        # 预测头输入：末端 patch（实测最优）
     head_hidden: Optional[int] = 128   # 预测头 MLP（实测最优）
-    max_patches: int = 64         # 位置编码上限（legacy：experiments/lm_sweep.py 用；生产 LargeModel 不再用）
 
 
 @dataclass
@@ -97,8 +94,8 @@ class TrainConfig:
     epochs: int = 100         # 论文：100 epoch + 早停
     patience: int = 12
     sm_sched: str = "cosine"  # SM 调度：cosine 实测 13.515→13.007（第三轮新发现）
-    seed: int = 42            # 数据划分 seed（LM 5 划分实测最优，REVISIONS #44）
-    num_workers: int = 0      # 0=确定性（torch 2.9 num_workers>0 下 shuffle 非确定，见 REVISIONS #50）
+    seed: int = 42            # 数据划分 seed（统一 42；LM 单 seed 协议 REVISIONS #48）
+    num_workers: int = 0      # 0=确定性（torch 2.9 num_workers>0 下 shuffle 非确定，见 REVISIONS #51）
     # 阶段3（置信度模块）——网格实测最优（REVISIONS #42）
     conf_epochs: int = 100    # 固定 epochs（val 早停与组合目标不一致，实测固定更优）
     conf_lr: float = 1e-3

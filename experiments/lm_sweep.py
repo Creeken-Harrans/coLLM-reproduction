@@ -61,7 +61,7 @@ def build_model(cfg, args):
 
     in_dim = args.patch * cfg.data.n_sensors
     patch_embed = nn.Linear(in_dim, cfg.large.d_embed)
-    pos_embed = nn.Parameter(gpt2.wpe.weight[:cfg.large.max_patches].unsqueeze(0).clone().detach())
+    pos_embed = nn.Parameter(gpt2.wpe.weight[:64].unsqueeze(0).clone().detach())
     gpt2.wpe.requires_grad_(False)
 
     n_patch_eff = 13 if args.pad == "replicate" else 12  # 窗口 50 / patch 4

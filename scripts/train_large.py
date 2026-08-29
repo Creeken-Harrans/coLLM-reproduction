@@ -1,8 +1,9 @@
-"""阶段2：训练大模型 L（论文：冻结 GPT-2 attention+FFN，微调 LN/patch embedding/位置嵌入/预测头）。
+"""阶段2：训练大模型 L（论文：One Fits All = GPT4TS，冻结 attention+FFN，微调 LN/TokenEmbedding/wpe/预测头）。
 
 配置按子集自动加载（collm.config.get_config）：
-  FD001: GPT-2 前 9 层 | FD003: 12 层；patch 4/stride 4；lr 2e-3、batch 256
-  统一单 seed 42 协议（LM 的 val-best 不可靠，REVISIONS #48）
+  FD001/FD003: GPT-2 12 层，官方 GPT4TS 输入编码（Conv1d TokenEmbedding + 固定正弦
+  位置嵌入 + ReplicationPad 13 patch）；patch 4/stride 4；lr 2e-3、batch 256
+  统一单 seed 42 协议（LM 的 val-best 不可靠，REVISIONS #48）；num_workers=0 确定性（#51）
 
 用法: python scripts/train_large.py --subset FD001 [--seed 42]
 """
@@ -42,8 +43,7 @@ def main():
     val_ld = DataLoader(val_ds, batch_size=cfg.train.batch_size, shuffle=False)
     te_ld = DataLoader(te_ds, batch_size=cfg.train.batch_size, shuffle=False)
 
-    model = LargeModel(cfg.large, n_sensors=cfg.data.n_sensors,
-                       window=cfg.data.window).to(device)
+    model = LargeModel(cfg.large, n_sensors=cfg.data.n_sensors).to(device)
     log.info(f"大模型可训练参数量: {trainable_params(model)/1e3:.1f}K / 总 "
              f"{sum(p.numel() for p in model.parameters())/1e6:.1f}M")
 

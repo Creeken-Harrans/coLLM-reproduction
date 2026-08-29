@@ -1,6 +1,6 @@
 # 文档索引（docs/）
 
-> 全部文档与 2026-08-16 第三轮终版结果一致；历史文档均带存档横幅或日期标注。
+> 权威结果与 2026-08-29 第四轮（LM 输入编码修正）一致；历史文档均带存档横幅或日期标注。
 
 ## 权威（当前结果）
 
@@ -9,14 +9,14 @@
 | [FINAL_RESULTS.md](FINAL_RESULTS.md) | **权威最终结果**：定稿配置、表 II/III 对照、消融、路由统计、图件清单、差距说明、鲁棒性验证 |
 | [PAPER_BENCHMARKS.md](PAPER_BENCHMARKS.md) | 论文表 I/II/III 基准数据（OCR 核对）+ FLOPs 反推触发率锚点 + FD003-C MAE 7.04/7.12 矛盾记录 |
 
-## 复现过程与证据（第三轮）
+## 复现过程与证据（第三/四轮）
 
 | 文档 | 内容 |
 |---|---|
 | [EXPERIMENTS_ROUND3.md](EXPERIMENTS_ROUND3.md) | 第三轮全部消融证据：LM 60+ 变体矩阵、SM cosine/30-seed、α×pool 扫描终表、反思 ±LN、图件像素裁决、Ql 饱和悬崖说明 |
 | [ROUND3_THEORY.md](ROUND3_THEORY.md) | 定量理论推演：FLOPs 锚点反推路由率、α∈[10,15] 校准推导、反思率=LM/SM 质量差函数（带终版横幅） |
 | [PLAN_ROUND3.md](PLAN_ROUND3.md) | 第三轮完整规划（阶段 A-E、防泄漏纪律、风险备选）+ 执行终态 |
-| [REVISIONS.md](REVISIONS.md) | 全周期错误决断与修复史 #1-#49（α 根因、LM 边界、Ql 悬崖、绘图专项、审计修复） |
+| [REVISIONS.md](REVISIONS.md) | 全周期错误决断与修复史 #1-#52（含第四轮 #50 LM 编码修正、#51 确定性修复、#52 反思 LN 复测） |
 
 ## 语义与设计核对
 

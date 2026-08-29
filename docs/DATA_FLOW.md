@@ -24,15 +24,16 @@ x ∈ R^{50×14} → 输入嵌入（14→32）→ Transformer Encoder（隐藏 6
 ## 阶段 2：训练大模型（论文 D 节）
 
 ```
-x ∈ R^{50×14}（直接进入，不经 SM）→ Patch Embedding（patch 4 / stride 4 / 嵌入 768）
-             → GPT-2（冻结 attention+FFN；微调 LN + 可学习位置嵌入）
-             → φl(x) ∈ R^{12×768} → 预测头（末端 patch）→ yl
+x ∈ R^{50×14}（直接进入，不经 SM）→ ReplicationPad1d 尾补 → 13 个 patch（56 维）
+             → Conv1d TokenEmbedding（56→768, k=3, circular）→ + 固定正弦位置嵌入
+             → GPT-2（冻结 attention+FFN；微调 LN + wpe）→ φl(x) ∈ R^{13×768}
+             → 预测头（末端 patch，MLP）→ yl
 损失：MSE(yl, y*)，只更新允许微调模块
 ```
 - 实现：`scripts/train_large.py` → `collm/models/large_model.py`
-- 冻结范围（论文 D 节："保留自注意力机制和前馈神经网络模块且不更新"）：attention+FFN 冻结，LN（ln_1/ln_2/ln_f）微调
-- FD001 用前 9 层、FD003 用 12 层（层数扫描，REVISIONS #27）
-- 位置嵌入：可学习，wpe 前 12 位初始化（One Fits All 惯例）
+- 冻结范围（论文 D 节 + OFA 官方）：attention+FFN 冻结，'ln' 与 'wpe' 可微调
+- **FD001/FD003 均 12 层**（One Fits All 官方 GPT4TS 结构，REVISIONS #50；13 patch 口径对应论文 2.21G FLOPs）
+- 位置嵌入：OFA 官方固定正弦位置嵌入（外加 GPT2Model inputs_embeds 内部的可训练 wpe）
 
 ## 阶段 3：训练置信度模块（论文 B/C 节）
 
@@ -43,7 +44,7 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ Patch Embedding（patch 4 / st
 ```
 - 实现：`scripts/train_conf.py` → `collm/models/fuzzy.py`、`collm/models/reflection.py`
 - FNN：64 高斯隶属函数（表 I）→ 模糊特征（时间聚合：FD001 stats / FD003 mean）→ **单层置信度头**（公式 11 字面）→ sigmoid
-- 自反思：φl 展平 9216 → **单层全连接（无 LayerNorm，论文字面）** → sigmoid
+- 自反思：φl 展平 9984（13×768）→ **单层全连接（无 LayerNorm，论文字面）** → sigmoid
 - α：**FD001=6（stats 聚合）/ FD003=6（mean 聚合）**（论文未给 α；第三轮 α×pool 扫描 val 定稿，EXPERIMENTS_ROUND3.md §6）
 - **训练数据 = train+val 全部窗口**（阶段3 是浅层模块，无早停泄漏问题；网格实测更优）
 - 固定 epochs（val 置信度 MSE 早停与组合目标不一致，实测固定 100ep 更优）
@@ -64,5 +65,5 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ Patch Embedding（patch 4 / st
 
 ## 关键决策索引
 - 论文未明确处：`docs/DESIGN_DECISIONS.md`（#1-26）
-- 错误与修复：`docs/REVISIONS.md`（#1-46）
+- 错误与修复：`docs/REVISIONS.md`（#1-52）
 - 语义逐条核对：`docs/SEMANTICS_CHECK.md`

@@ -158,8 +158,8 @@ def plot_fig4(models: dict, cfgs: dict, device: str, out_dir: Path):
     只画触发反思（Qs<τ1 且 Δ=Qs−Ql>τ2）的样本，x 轴 = 反思样本序号
     （论文 Sample Index 0-500/0-250 = 表 III 反思数 518/249）。
     下 = Error(LM−SM)：红 = LM 误差更大（论文"正差值→SM 辅助修正"），蓝 = LM 更优。
-    注：复现 LM 弱于论文（12.915 vs 11.18）→ 反思样本数远多于论文（11717/5789
-    vs 518/249），如实展示（见 FINAL_RESULTS §路由统计）。
+    注：新 LM（11.43）下无 LN 反思 Ql 饱和高位 → 反思 0 触发 → 本图为空（如实展示，
+    见 REVISIONS #52；加 LN 后 Ql 恢复校准、反思恢复触发）。
     """
     sub = "FD003"
     cfg = cfgs[sub]; model = models[sub]
