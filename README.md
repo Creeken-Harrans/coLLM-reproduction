@@ -12,7 +12,7 @@ Agent and Self-Reflection*（IEEE TFS 2026）——模糊决策智能体 + 自�
   │    └─ FNN（64 高斯隶属函数 + 模糊特征）──> Qs
   │         ├─ Qs ≥ τ1 ──> 直接输出 ys（快速退出）
   │         └─ Qs < τ1 ──> 调用 LM
-  ├─ LM（GPT-2 冻结 attention+FFN + patch 4/4 → 768）──> yl, φl(x) ∈ R^{12×768}
+  ├─ LM（GPT-2 冻结 attention+FFN + patch 4/4 → 768）──> yl, φl(x) ∈ R^{13×768}
   │    └─ 自反思 FCN（展平 + 单层全连接）──> Ql
   │         ├─ Δ = Qs−Ql ≤ τ2 ──> 输出 yl
   │         └─ Δ > τ2 ──> 输出 (ys+yl)/2（SM 辅助融合）
@@ -63,7 +63,7 @@ bash scripts/run_pipeline.sh all
 
 # 或分步：
 python scripts/train_small.py  --subset FD001   # 阶段1：cosine × 多 seed val-best
-python scripts/train_large.py  --subset FD001   # 阶段2：GPT-2 9 层冻结（seed 42）
+python scripts/train_large.py  --subset FD001   # 阶段2：GPT4TS 12 层冻结（seed 42）
 python scripts/train_conf.py   --subset FD001   # 阶段3：α=6/stats（config 自动加载）
 python scripts/evaluate.py     --subset FD001   # 表 II/III + 消融 + 分箱 + FLOPs
 python scripts/plot_results.py                 # 图 3-6（跨数据集一次生成）
