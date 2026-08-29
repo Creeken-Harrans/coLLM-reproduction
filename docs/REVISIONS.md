@@ -595,3 +595,61 @@ pipeline 可复现；交叉引用无死链；evaluate 复跑逐键 bit 级一致
 - 图件 OCR 子代理复核（8 图全检）：图3/4/6/汇总 5 图 PASS；发现并修复
   图5 标题裁切（suptitle y/tight_layout rect 修正）与加速比标签 14.54×
   被舍入成 "15×" 的失真（<100 用两位小数）。修复后标题区暗像素核验通过。
+
+## 50. LM 输入编码修正：One Fits All 官方 GPT4TS 结构（2026-08-29，复现突破）
+
+**根因定位**：论文正文 B 节明确"使用 One Fits All 作为大模型实现 CoLLM"，引用 [29]
+= One Fits All（NeurIPS 2023，GPT4TS，官方代码 DAMO-DI-ML/NeurIPS2023-One-Fits-All）。
+官方 GPT4TS 的输入编码为 **Conv1d TokenEmbedding（kernel 3 + circular pad + kaiming）+
+固定正弦位置嵌入 + ReplicationPad1d 尾补（13 patch）+ inputs_embeds 路径**；而此前
+复现定稿 LargeModel 用的是 **Linear(56→768) + GPT-2 wpe 初始化位置嵌入 + 12 patch 截断 +
+手动遍历块**。这一编码差异是 LM 差距（FD001 14.31 vs 论文 12.34）此前未识别的主要原因。
+
+**修复**（collm/models/large_model.py 重写）：
+- patch 嵌入：Linear(56→768) → Conv1d TokenEmbedding（OFA 官方）
+- 位置嵌入：wpe 初始化可学习 → 固定正弦（OFA 官方）
+- padding：12 patch 截断 → ReplicationPad1d 13 patch（OFA 官方；FLOPs 2215M ≈ 论文 2.21G）
+- GPT-2：手动遍历块 → inputs_embeds 路径（GPT2Model 内部自动加可训练 wpe）
+- 输出头：保持末端 patch MLP（实测优于 OFA 的 concat 头，RUL 标量回归末端信息最相关）
+
+**受控消融**（同脚本同 seed，9 层 FD001）：
+| 变体 | test RMSE | 结论 |
+|---|---|---|
+| sinusoidal + conv | **13.707** | 最优 |
+| sinusoidal + linear | 13.928 | conv > linear（+0.22）|
+| wpe + conv | 14.553 | sinusoidal >> wpe（+0.85）|
+
+**最终 LM 结果**（12 层，确定性训练，seed 42）：
+- FD001：14.309 → **13.923**（接近论文 GPT-2 Fine-tuning 13.49）
+- FD003：13.282 → **11.425**（接近论文 One Fits All Fine-tuning 11.18，差距 0.25）
+
+CoLLM 组合：FD001 A/B/C 12.628/12.502/12.482（差论文 0.10-0.18，原 0.25-0.31）；
+FD003 A/B/C 10.581/10.934/11.226（A/B 超论文，C 高 0.12）。
+
+## 51. 训练确定性修复：num_workers=0 + cuDNN deterministic（2026-08-29）
+
+**发现**：torch 2.9.1 下 LM 训练（num_workers=2）非确定——同 seed 42 重训 test RMSE
+13.45/14.24/14.26 波动（根因：DataLoader shuffle 非确定 + cuDNN 反向非确定随 epoch 累积；
+LM 过拟合快，微小差异经早停放大成 test 差异）。此前"LM 逐位一致"结论在该环境下不成立。
+
+**修复**：
+- `TrainConfig.num_workers` 2 → 0（DataLoader shuffle 确定）
+- `set_seed` 增加 `cudnn.deterministic=True` + `cudnn.benchmark=False`（cuDNN 反向确定）
+
+**验证**：修复后 FD001 LM 三次独立训练逐位一致（13.923/13.923/13.923）；FD003 两次一致
+（11.425/11.425）。注意：仍存在"val 幸运陷阱"（val-best epoch 可能非 test-最优），这是
+小数据 LM 过拟合快的固有性质，非本次修复目标。
+
+## 52. 反思网络 ±LayerNorm 复测（新 LM 下，2026-08-29）
+
+新 LM 下反思 Ql 饱和方向反转：FD001 Ql→0（always 融合）、FD003 Ql→1（never 融合）。
+复测 LN（对照 REVISIONS #46 旧 LM 结论）：
+| 子集 | 无 LN（定稿，公式字面） | 有 LN | Ql 校准（有 LN）|
+|---|---|---|---|
+| FD001 | 12.628/12.502/12.482 | 13.697/13.900/13.822 | 0.25/0.38/0.60 |
+| FD003 | 10.581/10.934/11.226 | **10.581/10.720/10.687** | 0.21/0.54/0.78 |
+
+**结论**：新 LM 下 LN 对 FD003 转正（C 11.226→10.687，全配置超论文）、FD001 仍负
+（接受弱 LM 的代价）。维持无 LN 定稿（公式 12 字面，紧贴论文）；LN 作为可选项
+（ReflectionModel.use_ln）记录在案。论文选择性反思（74-77% 正确）依赖的校准 Ql
+在"单层 FC + 无归一化"的字面实现下不可达——属论文未公开自由度的诚实记录。

@@ -48,23 +48,22 @@ class SmallModelConfig:
 
 @dataclass
 class LargeModelConfig:
-    """阶段2 大模型 L（论文：预训练 GPT-2 + patch embedding，冻结 attention+FFN）。
+    """阶段2 大模型 L（论文：One Fits All = GPT4TS，冻结 attention+FFN）。
 
     表 I：patch 4/stride 4、嵌入 768、特征 d_l=768。
-    层数：FD001 前 9 层 / FD003 12 层（REVISIONS #27；12 层 13patch 口径对应
-    论文 One Fits All 的 2.21G，见 ROUND3_THEORY/EXPERIMENTS_ROUND3）。
+    输入编码为 One Fits All 官方结构（Conv1d TokenEmbedding + 固定正弦位置嵌入 +
+    ReplicationPad 13 patch），FD001/FD003 均 12 层（REVISIONS #50）。
     """
     model_name: str = "pretrained/gpt2"   # 项目内本地权重（gpt2 small，124M）
     patch_size: int = 4       # 论文
     patch_stride: int = 4     # 论文
     d_embed: int = 768        # patch → 768 维（GPT-2 嵌入维）
-    n_blocks: int = 9         # 子集相关：FD001=9、FD003=12（见 get_config）
+    n_blocks: int = 12        # 子集相关：FD001=12、FD003=12（见 get_config）
     freeze_backbone: bool = True   # 冻结 attention+FFN（论文 D 节）
     learnable_ln_f: bool = True    # ln_f 与逐层 LN 可微调（论文冻结范围仅 attention+FFN）
-    pos_init: str = "wpe"          # 位置嵌入：可学习，wpe 前 n_patch 位初始化（实测最优）
     pool_mode: str = "last"        # 预测头输入：末端 patch（实测最优）
     head_hidden: Optional[int] = 128   # 预测头 MLP（实测最优）
-    max_patches: int = 64         # 位置编码上限（窗口 50 / patch 4 → 12 个 patch，留余量）
+    max_patches: int = 64         # 位置编码上限（legacy：experiments/lm_sweep.py 用；生产 LargeModel 不再用）
 
 
 @dataclass
@@ -84,9 +83,9 @@ class FuzzyConfig:
 class ReflectionConfig:
     """自反思模型 R（论文公式 12-14：φl 展平 + 单层全连接 → Ql）。
 
-    输入展平维度 = n_patch(12) × d_l(768) = 9216（窗口 50 / patch 4，末端截断）。
+    输入展平维度 = n_patch(13) × d_l(768) = 9984（窗口 50 / patch 4，ReplicationPad 尾补）。
     """
-    d_input: int = 9216
+    d_input: int = 9984
     alpha: float = 6.0        # 与 FNN 相同 α（论文公式 10/13 同一符号）
 
 
@@ -99,7 +98,7 @@ class TrainConfig:
     patience: int = 12
     sm_sched: str = "cosine"  # SM 调度：cosine 实测 13.515→13.007（第三轮新发现）
     seed: int = 42            # 数据划分 seed（LM 5 划分实测最优，REVISIONS #44）
-    num_workers: int = 2
+    num_workers: int = 0      # 0=确定性（torch 2.9 num_workers>0 下 shuffle 非确定，见 REVISIONS #50）
     # 阶段3（置信度模块）——网格实测最优（REVISIONS #42）
     conf_epochs: int = 100    # 固定 epochs（val 早停与组合目标不一致，实测固定更优）
     conf_lr: float = 1e-3
@@ -138,7 +137,8 @@ def get_config(subset: str) -> Config:
 
     - SM 层数/正则：FD001 8 层 dropout 0.2（φs 泛化差，加深+正则最优）；
       FD003 6 层 dropout 0.1（已达标，保持）
-    - LM 层数：FD001 9 层（12 层过拟合 test 15.7）；FD003 12 层（9 层 13.19 < 12 层 13.08）
+    - LM 层数：FD001/FD003 均 12 层（One Fits All 官方 GPT4TS 结构，REVISIONS #50；
+      13 patch 口径对应论文 2.21G FLOPs）
     - FNN 聚合/α：FD001 stats/α6；FD003 mean/α6（第三轮 α×pool 扫描 val 最优，
       EXPERIMENTS_ROUND3.md；扫描与 train_conf 配方逐位一致后复选，
       REVISIONS #48——Ql 饱和悬崖对训练配方敏感）
@@ -149,7 +149,7 @@ def get_config(subset: str) -> Config:
     if subset == "FD001":
         cfg.small.n_layers = 8
         cfg.small.dropout = 0.2
-        cfg.large.n_blocks = 9
+        cfg.large.n_blocks = 12
         cfg.fuzzy.pool_mode = "stats"
         cfg.fuzzy.alpha = 6.0
         cfg.reflection.alpha = 6.0

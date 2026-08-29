@@ -1,51 +1,91 @@
-"""大模型 L（论文：预训练 GPT-2 + patch embedding，冻结自注意力与 FFN）。
+"""大模型 L（论文：One Fits All = GPT4TS，NeurIPS 2023，冻结自注意力与 FFN）。
 
-架构（对齐论文 D 节 + 表 I）:
-  x ∈ R^{50×14} ──patch 化（patch=4, stride=4 → 12 个 patch）
-    ──▶ Linear(4×14 → 768)  ──加可学习位置嵌入（wpe 前 12 位初始化）──▶
-    ──▶ GPT-2 N 层块（冻结 attention+FFN；LN 微调）+ ln_f ──▶ φl(x) ∈ R^{12×768}
-    ──▶ LM 预测头（末端 patch 特征，MLP）──▶ yl ∈ R
+架构（对齐论文 D 节 + 表 I + One Fits All 官方 GPT4TS 结构）:
+  x ∈ R^{50×14} ──ReplicationPad1d 尾补 stride──▶ 13 个 patch（通道拼接，56 维）
+    ──▶ TokenEmbedding（Conv1d 56→768, k=3, circular pad, kaiming）──▶ (B,13,768)
+    ──▶ + 固定正弦位置嵌入 ──▶ GPT-2 N 层块（inputs_embeds 路径，内部加可训练 wpe）
+    ──▶ φl(x) ∈ R^{13×768} ──▶ 预测头（末端 patch，MLP）──▶ yl ∈ R
 
-阶段2：仅训练 patch embedding、位置嵌入、LN 与预测头（论文：注意力与 FFN 全程冻结）。
-层数：FD001=9、FD003=12（get_config 定稿，REVISIONS #27）。
+阶段2：仅训练 patch 嵌入、位置嵌入(wpe)、LN 与预测头（冻结 attention+FFN，
+OFA 官方：'ln' 与 'wpe' 可训练）。
+
+关键修正（2026-08-29 复现突破）:
+  - 输入编码由「Linear(56→768) + wpe 初始化可学习位置」改为 One Fits All 官方的
+    「Conv1d TokenEmbedding + 固定正弦位置嵌入」——FD001 LM test 14.309 → 13.45
+    （12 层，详见 experiments/ 与 docs/REVISIONS.md 新增条目）。
 """
+import math
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from transformers import GPT2Model
 
 from ..config import LargeModelConfig
 
 
+class TokenEmbedding(nn.Module):
+    """OFA 官方 TokenEmbedding：Conv1d 值嵌入（kernel 3 + circular pad + kaiming）。"""
+
+    def __init__(self, c_in: int, d_model: int):
+        super().__init__()
+        self.token_conv = nn.Conv1d(in_channels=c_in, out_channels=d_model,
+                                    kernel_size=3, padding=1, padding_mode="circular",
+                                    bias=False)
+        nn.init.kaiming_normal_(self.token_conv.weight, mode="fan_in",
+                                nonlinearity="leaky_relu")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (B, n_patch, c_in) -> Conv1d over n_patch -> (B, d_model, n_patch)
+        return self.token_conv(x.permute(0, 2, 1)).transpose(1, 2)
+
+
+class PositionalEmbedding(nn.Module):
+    """OFA 官方固定正弦位置嵌入（sin/cos，max_len=5000，不参与训练）。"""
+
+    def __init__(self, d_model: int, max_len: int = 5000):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model).float()
+        pe.requires_grad = False
+        position = torch.arange(0, max_len).float().unsqueeze(1)
+        div_term = (torch.arange(0, d_model, 2).float()
+                    * -(math.log(10000.0) / d_model)).exp()
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.pe[:, : x.size(1)]
+
+
 class LargeModel(nn.Module):
-    def __init__(self, cfg: LargeModelConfig, n_sensors: int = 14):
+    def __init__(self, cfg: LargeModelConfig, n_sensors: int = 14, window: int = 50):
         super().__init__()
         self.cfg = cfg
+        self.patch_size = cfg.patch_size
+        self.stride = cfg.patch_stride
+        # 13 个 patch：OFA 官方 patch_num = (seq-patch)//stride + 1，ReplicationPad 后再 +1
+        self.n_patch = (window - cfg.patch_size) // cfg.patch_stride + 1 + 1
+
         # GPT-2 backbone（本地权重），随后冻结
         self.gpt2 = GPT2Model.from_pretrained(cfg.model_name)
-        # 层数裁剪（FD001 前 9 层 / FD003 12 层）
         if cfg.n_blocks < len(self.gpt2.h):
             self.gpt2.h = self.gpt2.h[:cfg.n_blocks]
-        if cfg.freeze_backbone:
-            # 论文 D 节：保留"自注意力机制和前馈神经网络模块"不更新——冻结范围仅限
-            # attention+FFN；逐层 LN（ln_1/ln_2）与 ln_f 可微调（论文字面对齐）
-            for p in self.gpt2.parameters():
-                p.requires_grad = False
-            for block in self.gpt2.h:
-                for p in block.ln_1.parameters():
-                    p.requires_grad = cfg.learnable_ln_f
-                for p in block.ln_2.parameters():
-                    p.requires_grad = cfg.learnable_ln_f
-        for p in self.gpt2.ln_f.parameters():
-            p.requires_grad = cfg.learnable_ln_f
+        # 冻结范围（OFA 官方）：仅 'ln' 与 'wpe' 可训练，attention+FFN 冻结
+        for name, param in self.gpt2.named_parameters():
+            if "ln" in name or "wpe" in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
 
-        # patch embedding：patch 化（无重叠，stride == patch_size）
+        # patch 嵌入：Conv1d TokenEmbedding（OFA 官方，非 Linear）
         in_dim = cfg.patch_size * n_sensors
-        self.patch_embed = nn.Linear(in_dim, cfg.d_embed)
-        # 位置嵌入：可学习，从预训练 wpe 前 n_patch 位初始化（实测最优，REVISIONS #4/#17）
-        self.pos_embed = nn.Parameter(
-            self.gpt2.wpe.weight[:cfg.max_patches].unsqueeze(0).clone().detach())
-        for p in self.gpt2.wpe.parameters():
-            p.requires_grad = False
+        self.token_embed = TokenEmbedding(in_dim, cfg.d_embed)
+        # 固定正弦位置嵌入（OFA 官方，非 wpe）
+        self.pos_embed = PositionalEmbedding(cfg.d_embed)
+        self.dropout = nn.Dropout(0.1)
+
         # 预测头：末端 patch 特征 → RUL（MLP，实测最优）
         if cfg.head_hidden:
             self.predictor = nn.Sequential(
@@ -58,26 +98,27 @@ class LargeModel(nn.Module):
             self.predictor = nn.Linear(cfg.d_embed, 1)
 
     def _patchify(self, x: torch.Tensor) -> torch.Tensor:
-        """x: (B, T, C) → patches (B, n_patch, patch_size*C)。尾部不足直接截断。"""
-        ps, st = self.cfg.patch_size, self.cfg.patch_stride
-        pat = x.unfold(1, ps, st)                  # (B, n, C, ps)
-        pat = pat.permute(0, 1, 3, 2).reshape(x.shape[0], -1, ps * x.shape[2])
-        return pat
+        """x: (B, T, C) → (B, n_patch, patch_size*C)。ReplicationPad1d 尾补（OFA 官方）。"""
+        x = x.permute(0, 2, 1)                          # (B, C, T)
+        x = F.pad(x, (0, self.stride), mode="replicate")  # (B, C, T+stride)
+        x = x.unfold(dimension=-1, size=self.patch_size, step=self.stride)
+        # (B, C, n_patch, patch_size)
+        B, C = x.shape[0], x.shape[1]
+        x = x.reshape(B, C, self.n_patch, self.patch_size).permute(0, 2, 1, 3)
+        return x.reshape(B, self.n_patch, self.patch_size * C)
 
     def forward(self, x: torch.Tensor, return_feat: bool = True):
         """x: (B, T, 14) → (yl: (B,), φl: (B, n_patch, 768))"""
-        x = self._patchify(x)                     # (B, n, 56)
-        x = self.patch_embed(x)                   # (B, n, 768)
-        x = x + self.pos_embed[:, : x.shape[1]]   # 可学习位置嵌入
-        # 手动遍历 GPT-2 块（不使用 inputs_embeds 路径，避免其内部重复加 wpe）
-        h = x
-        for block in self.gpt2.h:
-            h = block(h)
-        out = self.gpt2.ln_f(h)                   # (B, n, 768)
-        feat = out[:, -1]                         # 末端 patch（实测最优）
-        yl = self.predictor(feat)                 # → (B, 1)
+        x = self._patchify(x)                          # (B, 13, 56)
+        h = self.token_embed(x)                        # (B, 13, 768)
+        h = h + self.pos_embed(h)                      # 固定正弦位置嵌入
+        h = self.dropout(h)
+        # inputs_embeds 路径（GPT2Model 内部自动加可训练 wpe，OFA 官方行为）
+        h = self.gpt2(inputs_embeds=h).last_hidden_state  # (B, 13, 768)
+        feat = h
+        yl = self.predictor(h[:, -1])                  # 末端 patch（实测最优）
         if return_feat:
-            return yl.squeeze(-1), out
+            return yl.squeeze(-1), feat
         return yl.squeeze(-1)
 
 

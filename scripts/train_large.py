@@ -42,7 +42,8 @@ def main():
     val_ld = DataLoader(val_ds, batch_size=cfg.train.batch_size, shuffle=False)
     te_ld = DataLoader(te_ds, batch_size=cfg.train.batch_size, shuffle=False)
 
-    model = LargeModel(cfg.large, n_sensors=cfg.data.n_sensors).to(device)
+    model = LargeModel(cfg.large, n_sensors=cfg.data.n_sensors,
+                       window=cfg.data.window).to(device)
     log.info(f"大模型可训练参数量: {trainable_params(model)/1e3:.1f}K / 总 "
              f"{sum(p.numel() for p in model.parameters())/1e6:.1f}M")
 

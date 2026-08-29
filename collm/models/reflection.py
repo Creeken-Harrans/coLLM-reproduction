@@ -14,14 +14,20 @@ from ..config import ReflectionConfig
 
 
 class ReflectionModel(nn.Module):
-    def __init__(self, cfg: ReflectionConfig):
+    def __init__(self, cfg: ReflectionConfig, use_ln: bool = False):
         super().__init__()
         self.cfg = cfg
+        self.use_ln = use_ln
         # 单层全连接投影（论文公式 12）：展平 t×d_l → 标量
+        # 可选 LayerNorm：φl 高维特征范数大 → 无 LN 时 sigmoid 饱和（REVISIONS #46/#50）
+        if use_ln:
+            self.ln = nn.LayerNorm(cfg.d_input)
         self.proj = nn.Linear(cfg.d_input, 1)
 
     def forward(self, feat: torch.Tensor) -> torch.Tensor:
         """feat: φl(x) (B, t, d_l) → Q_l: (B,)"""
         b = feat.shape[0]
         f = feat.reshape(b, -1)                    # 展平（论文）
+        if self.use_ln:
+            f = self.ln(f)
         return torch.sigmoid(self.proj(f).squeeze(-1))

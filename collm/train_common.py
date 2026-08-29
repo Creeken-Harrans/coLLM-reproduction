@@ -15,6 +15,9 @@ def set_seed(seed: int):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    # 确定性 CUDA（torch 2.9 下 cuDNN 反向非确定会随 epoch 累积，见 REVISIONS #51）
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def rmse_mae(y_pred: torch.Tensor, y_true: torch.Tensor) -> tuple[float, float]:
