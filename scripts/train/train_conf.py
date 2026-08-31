@@ -8,13 +8,13 @@
   FD001: stats 聚合、α=6 | FD003: mean 聚合、α=6
   训练数据 = train+val 全部窗口（浅层模块，无早停泄漏），固定 epochs（实测最优）
 
-用法: python scripts/train_conf.py --subset FD001
+用法: python scripts/train/train_conf.py --subset FD001
 """
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import torch
 import torch.nn as nn
@@ -22,11 +22,11 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from collm.config import get_config
 from collm.data import prepare_cmapss
-from collm.logging_utils import setup_logger, log_metrics
+from collm.logging import setup_logger, log_metrics
 from collm.models.collm import CoLLM
 from collm.models.fuzzy import FuzzyAgent, confidence_label
 from collm.models.reflection import ReflectionModel
-from collm.train_common import set_seed
+from collm.training import set_seed
 
 
 @torch.no_grad()

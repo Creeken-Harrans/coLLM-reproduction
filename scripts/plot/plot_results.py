@@ -16,13 +16,13 @@ REVISIONS #45.4；OCR 细节见交付记录）：
 - 配色按论文正文 E 节：LM 绿、SM 蓝、真实黑。
 
 所有曲线/柱状均来自当前定稿 checkpoint 的真实推理（无美化、无截断选择）。
-用法: python scripts/plot_results.py [--device cuda]（跨数据集一次生成图 3/4/5/6）
+用法: python scripts/plot/plot_results.py [--device cuda]（跨数据集一次生成图 3/4/5/6）
 """
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 import torch
@@ -274,8 +274,6 @@ def main():
     args = ap.parse_args()
 
     device = args.device if torch.cuda.is_available() else "cpu"
-    out_dir = Path("outputs") / "figures"
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     models, cfgs = {}, {}
     for sub in ("FD001", "FD003"):
@@ -288,6 +286,10 @@ def main():
                 torch.load(ckpt / f"{name}.pt", map_location=device))
         models[sub] = model
         cfgs[sub] = cfg
+
+    # 图件输出目录统一随配置 out_dir（与 evaluate/checkpoints 路径一致）
+    out_dir = Path(cfgs["FD001"].out_dir) / "figures"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     plot_fig3_6(models, cfgs, device, out_dir)
     plot_fig4(models, cfgs, device, out_dir)

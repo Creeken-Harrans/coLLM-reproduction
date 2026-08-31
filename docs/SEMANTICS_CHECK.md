@@ -50,7 +50,7 @@
 | 去 7 恒定传感器 | 1,5,6,10,16,18,19 | data.py | ✅ |
 | 滑窗 50/1 | [26] DLformer | data.py | ✅ |
 | 20% 验证 | "随机选取" | 按 unit（防泄漏） | ⚠️ 论证过 |
-| Adam/100 epoch/早停 | 表 I/正文 | train_common | ✅ |
+| Adam/100 epoch/早停 | 表 I/正文 | collm/training.py | ✅ |
 | RUL 截断 | 未明说（指标反推） | cap=125 | ⚠️ 决策 #1 |
 | 阈值 | FD001 A[0.3,0.1] B[0.4,0.1] C[0.6,0.05]；FD003 A[0.15,0.1] B[0.4,0.1] C[0.6,0.05] | config Thresholds | ✅ |
 | 加速比 | FLOPs 基线 LM/CoLLM | flops.py | ✅ |

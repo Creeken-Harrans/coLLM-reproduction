@@ -1,12 +1,12 @@
 """置信度校准诊断：Qs/Ql 分布、与真实误差相关性、隶属函数学习情况。
 
-用法: python scripts/diagnose.py --subset FD001
+用法: python scripts/assess/diagnose.py --subset FD001
 """
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 import torch
@@ -50,7 +50,6 @@ def main():
     cfg = get_config(args.subset)
     device = args.device if torch.cuda.is_available() else "cpu"
     alpha = cfg.fuzzy.alpha
-    ckpt = Path(cfg.out_dir) / "checkpoints" / args.subset
 
     # 从权重推断层数 + 阶段3 配置对齐（子代理审查发现：此前固定默认值导致加载崩溃）
     ckpt_dir = Path(cfg.out_dir) / "checkpoints" / args.subset
@@ -62,7 +61,7 @@ def main():
     model = CoLLM(cfg).to(device).eval()
     for part, name in [("small", "small"), ("large", "large"),
                        ("fuzzy", "fuzzy"), ("reflection", "reflection")]:
-        p = ckpt / f"{name}.pt"
+        p = ckpt_dir / f"{name}.pt"
         if p.exists():
             getattr(model, part).load_state_dict(torch.load(p, map_location=device))
         else:

@@ -1,19 +1,26 @@
 """最终结果汇总图：论文 vs 复现对比 + 消融效果 + 反思正确率。
 
-输出（outputs/figures/）:
+输出（{out_dir}/figures/）:
 - summary_vs_paper.png     RMSE/MAE 对比（论文 vs 复现，FD001/FD003 × A/B/C）
 - summary_ablation.png     自反思消融（有/无 RMSE）+ 反思正确率
+- summary_speedup.png      加速比对比（论文 vs 复现，对数坐标）
 """
 import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+
+from collm.config import get_config
+
+# 输出根目录统一随配置 out_dir（结果 JSON 与图件路径一致）
+OUT_DIR = Path(get_config("FD001").out_dir)
+FIG_DIR = OUT_DIR / "figures"
 
 # 中文字体（Noto Sans CJK SC，思源黑体）——DejaVu 不支持中文会乱码
 plt.rcParams.update({
@@ -42,7 +49,7 @@ PAPER = {
 
 
 def load(subset):
-    return json.load(open(f"outputs/results/{subset}_results.json"))
+    return json.load(open(OUT_DIR / "results" / f"{subset}_results.json"))
 
 
 def plot_vs_paper():
@@ -75,9 +82,9 @@ def plot_vs_paper():
         ax.legend(h1 + h2, l1 + l2, fontsize=8, loc="upper left")
     fig.suptitle("论文 vs 复现：CoLLM RMSE / MAE 对比（表 II）", y=1.02)
     fig.tight_layout()
-    fig.savefig("outputs/figures/summary_vs_paper.png", bbox_inches="tight")
+    fig.savefig(FIG_DIR / "summary_vs_paper.png", bbox_inches="tight")
     plt.close(fig)
-    print("已保存 outputs/figures/summary_vs_paper.png")
+    print(f"已保存 {FIG_DIR / 'summary_vs_paper.png'}")
 
 
 def plot_ablation():
@@ -111,9 +118,9 @@ def plot_ablation():
     fig.suptitle("自反思消融（论文：删除后 RMSE 变差 0.3-1.1%；复现 8.8-22.7%——"
                  "LM 弱于论文 → 融合收益更大）", y=1.02, fontsize=11)
     fig.tight_layout()
-    fig.savefig("outputs/figures/summary_ablation.png", bbox_inches="tight")
+    fig.savefig(FIG_DIR / "summary_ablation.png", bbox_inches="tight")
     plt.close(fig)
-    print("已保存 outputs/figures/summary_ablation.png")
+    print(f"已保存 {FIG_DIR / 'summary_ablation.png'}")
 
 
 def plot_speedup():
@@ -142,9 +149,9 @@ def plot_speedup():
                  "均为模型强度差的诚实后果）", fontsize=9)
     ax.legend(fontsize=8)
     fig.tight_layout()
-    fig.savefig("outputs/figures/summary_speedup.png", bbox_inches="tight")
+    fig.savefig(FIG_DIR / "summary_speedup.png", bbox_inches="tight")
     plt.close(fig)
-    print("已保存 outputs/figures/summary_speedup.png")
+    print(f"已保存 {FIG_DIR / 'summary_speedup.png'}")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 from collm.config import get_config
 from collm.data import prepare_cmapss
 from collm.models.small_model import SmallModel
-from collm.train_common import set_seed, rmse_mae
+from collm.training import set_seed, rmse_mae
 
 
 def run(args):

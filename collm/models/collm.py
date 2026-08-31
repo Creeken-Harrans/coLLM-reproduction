@@ -1,4 +1,4 @@
-"""CoLLM 框架组装（论文图 1 / Algorithm 1 的推理路由见 scripts/evaluate.py::combine）。
+"""CoLLM 框架组装（论文图 1 / Algorithm 1 的推理路由见 scripts/assess/evaluate.py::combine）。
 
 推理规则（论文明确）:
     y_final = ys                    若 Q_s ≥ τ1        （小模型直接退出）
@@ -7,9 +7,9 @@
 其中 Δ = Q_s − Q_l。
 
 三阶段训练（论文）:
-    阶段1: 只训 SM（scripts/train_small.py，直接操作 self.small）
-    阶段2: 只训 LM 可训练部分（scripts/train_large.py，直接操作 self.large）
-    阶段3: 只训 FNN 与自反思（scripts/train_conf.py，直接操作 self.fuzzy/self.reflection）
+    阶段1: 只训 SM（scripts/train/train_small.py，直接操作 self.small）
+    阶段2: 只训 LM 可训练部分（scripts/train/train_large.py，直接操作 self.large）
+    阶段3: 只训 FNN 与自反思（scripts/train/train_conf.py，直接操作 self.fuzzy/self.reflection）
 """
 import torch.nn as nn
 

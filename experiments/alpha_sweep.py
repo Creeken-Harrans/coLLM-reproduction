@@ -24,7 +24,7 @@ from collm.data import prepare_cmapss
 from collm.models.collm import CoLLM
 from collm.models.fuzzy import FuzzyAgent, confidence_label
 from collm.models.reflection import ReflectionModel
-from collm.train_common import set_seed
+from collm.training import set_seed
 
 
 def rmse(a, b):

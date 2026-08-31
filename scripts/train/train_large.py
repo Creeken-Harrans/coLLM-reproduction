@@ -5,13 +5,13 @@
   位置嵌入 + ReplicationPad 13 patch）；patch 4/stride 4；lr 2e-3、batch 256
   统一单 seed 42 协议（LM 的 val-best 不可靠，REVISIONS #48）；num_workers=0 确定性（#51）
 
-用法: python scripts/train_large.py --subset FD001 [--seed 42]
+用法: python scripts/train/train_large.py --subset FD001 [--seed 42]
 """
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import torch
 import torch.nn as nn
@@ -19,9 +19,9 @@ from torch.utils.data import DataLoader
 
 from collm.config import get_config
 from collm.data import prepare_cmapss
-from collm.logging_utils import setup_logger, log_metrics
+from collm.logging import setup_logger, log_metrics
 from collm.models.large_model import LargeModel, trainable_params
-from collm.train_common import set_seed, train_loop, evaluate
+from collm.training import set_seed, train_loop, evaluate
 
 
 def main():

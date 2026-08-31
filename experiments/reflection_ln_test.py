@@ -20,7 +20,7 @@ from collm.data import prepare_cmapss
 from collm.models.collm import CoLLM
 from collm.models.fuzzy import FuzzyAgent, confidence_label
 from collm.models.reflection import ReflectionModel
-from collm.train_common import set_seed, rmse_mae
+from collm.training import set_seed, rmse_mae
 
 
 def combine(ys, yl, qs, ql, tau1, tau2):

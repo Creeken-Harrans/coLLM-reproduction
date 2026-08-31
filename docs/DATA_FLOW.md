@@ -17,7 +17,7 @@ x ∈ R^{50×14} → 输入嵌入（14→32）→ Transformer Encoder（隐藏 6
              → φs(x) ∈ R^{50×32} → 预测头（末端时间步）→ ys
 损失：MSE(ys, y*)，只更新 SM 与预测头
 ```
-- 实现：`scripts/train_small.py` → `collm/models/small_model.py`
+- 实现：`scripts/train/train_small.py` → `collm/models/small_model.py`
 - 超参（表 I）：lr 2e-3、batch 256、100 epochs 早停、Adam、cosine 调度（REVISIONS #45.3）
 - 多 seeds 训练（FD001 6 / FD003 5），val 最优复制为 `small.pt`（cosine 调度，REVISIONS #45.3）
 
@@ -30,7 +30,7 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ ReplicationPad1d 尾补 → 13
              → 预测头（末端 patch，MLP）→ yl
 损失：MSE(yl, y*)，只更新允许微调模块
 ```
-- 实现：`scripts/train_large.py` → `collm/models/large_model.py`
+- 实现：`scripts/train/train_large.py` → `collm/models/large_model.py`
 - 冻结范围（论文 D 节 + OFA 官方）：attention+FFN 冻结，'ln' 与 'wpe' 可微调
 - **FD001/FD003 均 12 层**（One Fits All 官方 GPT4TS 结构，REVISIONS #50；13 patch 口径对应论文 2.21G FLOPs）
 - 位置嵌入：OFA 官方固定正弦位置嵌入（外加 GPT2Model inputs_embeds 内部的可训练 wpe）
@@ -42,7 +42,7 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ ReplicationPad1d 尾补 → 13
                     └─ LM（冻结）──> yl, φl(x) ──> FCN ──> Ql（目标 Q*_l=1−tanh(|yl−y*|/α)）
 损失：MSE(Qs, Q*_s) + MSE(Ql, Q*_l)，只更新 FNN 与自反思网络
 ```
-- 实现：`scripts/train_conf.py` → `collm/models/fuzzy.py`、`collm/models/reflection.py`
+- 实现：`scripts/train/train_conf.py` → `collm/models/fuzzy.py`、`collm/models/reflection.py`
 - FNN：64 高斯隶属函数（表 I）→ 模糊特征（时间聚合：FD001 stats / FD003 mean）→ **单层置信度头**（公式 11 字面）→ sigmoid
 - 自反思：φl 展平 9984（13×768）→ **单层全连接（无 LayerNorm，论文字面）** → sigmoid
 - α：**FD001=6（stats 聚合）/ FD003=6（mean 聚合）**（论文未给 α；第三轮 α×pool 扫描 val 定稿，EXPERIMENTS_ROUND3.md §6）
@@ -59,7 +59,7 @@ x ∈ R^{50×14}（直接进入，不经 SM）→ ReplicationPad1d 尾补 → 13
 4. Δ ≤ τ2 ──> y_final = yl（接受大模型）
 5. Δ > τ2 ──> y_final = (ys + yl) / 2（SM 辅助融合，论文 G(·)=(ys+yl)/2）
 ```
-- 实现：`scripts/evaluate.py::combine`
+- 实现：`scripts/assess/evaluate.py::combine`
 - 阈值：FD001 A[0.3,0.1] B[0.4,0.1] C[0.6,0.05]；FD003 A[0.15,0.1] B[0.4,0.1] C[0.6,0.05]
 - FLOPs 加速：`collm/flops.py`（SM+LM 混合口径，与论文表 II 同）
 

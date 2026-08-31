@@ -38,7 +38,7 @@ from transformers import GPT2Model, GPT2Config
 
 from collm.config import get_config
 from collm.data import prepare_cmapss
-from collm.train_common import set_seed, rmse_mae
+from collm.training import set_seed, rmse_mae
 
 
 def build_model(cfg, args):

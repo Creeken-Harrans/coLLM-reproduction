@@ -8,14 +8,14 @@
 输出: RMSE/MAE（CoLLM-A/B/C + 表 III [0.9,0.05] 对照）、路由统计、
 FLOPs 加速比（相对纯 LM）、自反思消融、反思样本正确率、置信度分箱（图 5）。
 
-用法: python scripts/evaluate.py --subset FD001
+用法: python scripts/assess/evaluate.py --subset FD001
 """
 import argparse
 import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 import torch
@@ -25,7 +25,7 @@ from collm.config import get_config
 from collm.data import prepare_cmapss
 from collm.models.collm import CoLLM
 from collm.flops import collm_flops, collm_speedup
-from collm.train_common import set_seed
+from collm.training import set_seed
 
 
 @torch.no_grad()

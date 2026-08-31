@@ -5,14 +5,14 @@
   cosine 调度 + lr 2e-3 + batch 256（cosine 13.515→13.007，REVISIONS #45.3）
   多 seed val-best（--seeds；数据划分 seed 固定 42）
 
-用法: python scripts/train_small.py --subset FD001 [--seeds 42 2024 ...]
+用法: python scripts/train/train_small.py --subset FD001 [--seeds 42 2024 ...]
 """
 import argparse
 import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import torch
 import torch.nn as nn
@@ -20,9 +20,9 @@ from torch.utils.data import DataLoader
 
 from collm.config import get_config
 from collm.data import prepare_cmapss
-from collm.logging_utils import setup_logger, log_metrics
+from collm.logging import setup_logger, log_metrics
 from collm.models.small_model import SmallModel
-from collm.train_common import set_seed, train_loop, evaluate
+from collm.training import set_seed, train_loop, evaluate
 
 
 def main():

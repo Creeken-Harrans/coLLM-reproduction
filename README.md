@@ -28,19 +28,23 @@ coLLM/
 ├── collm/                    # 核心库
 │   ├── config.py             # 定稿配置集中化：get_config(subset)（FD001/FD003 差异一览）
 │   ├── data.py               # 数据预处理（→ data/processed 落盘）
-│   ├── train_common.py       # 训练循环/早停/评估
+│   ├── training.py           # 训练循环/早停/评估
 │   ├── flops.py              # FLOPs 统计（论文口径）
-│   └── models/               # small（阶段1）/ large（阶段2）/ fuzzy（FNN）/ reflection（自反思）
-├── scripts/
+│   ├── logging.py            # 统一日志体系（控制台 + 文件 + 结构化 JSONL）
+│   └── models/               # small / large / fuzzy / reflection / collm 组装
+├── scripts/                  # 可执行入口（按流水线阶段分组）
 │   ├── run_pipeline.sh       # 一键完整流程（预处理→三阶段→评估→图）
-│   ├── train_small.py        # 阶段1 SM（cosine，多 seed val-best）
-│   ├── train_large.py        # 阶段2 LM
-│   ├── train_conf.py         # 阶段3 FNN+自反思
-│   ├── evaluate.py           # 表 II/III 指标（A/B/C/T3-09+消融+分箱+FLOPs）
-│   ├── diagnose.py           # 置信度校准诊断
-│   ├── plot_results.py       # 论文图 3-6（完全对齐论文布局，跨数据集一次生成）
-│   └── plot_summary.py       # 汇总图（论文 vs 复现/消融/加速比）
-├── experiments/              # 第三轮消融脚手架与裁决记录（EXPERIMENTS_ROUND3.md）
+│   ├── train/                # 三阶段训练
+│   │   ├── train_small.py    #   阶段1 SM（cosine，多 seed val-best）
+│   │   ├── train_large.py    #   阶段2 LM
+│   │   └── train_conf.py     #   阶段3 FNN+自反思
+│   ├── assess/               # 评估与诊断
+│   │   ├── evaluate.py       #   表 II/III 指标（A/B/C/T3-09+消融+分箱+FLOPs）
+│   │   └── diagnose.py       #   置信度校准诊断
+│   └── plot/                 # 可视化
+│       ├── plot_results.py   #   论文图 3-6（完全对齐论文布局，跨数据集一次生成）
+│       └── plot_summary.py   #   汇总图（论文 vs 复现/消融/加速比）
+├── experiments/              # 第三轮消融脚手架与裁决记录（历史过程记录，见 experiments/README.md）
 ├── data/raw/cmapss/          # CMAPSS 原始数据（NASA 公开数据集）
 ├── data/processed/           # 预处理结果（npz + meta json，训练时自动生成）
 ├── docs/                     # 文档索引 docs/README.md；权威结果 FINAL_RESULTS.md
@@ -62,12 +66,12 @@ source .venv/bin/activate   # 现成 venv：Python 3.12, torch 2.9.1+cu128, tran
 bash scripts/run_pipeline.sh all
 
 # 或分步：
-python scripts/train_small.py  --subset FD001   # 阶段1：cosine × 多 seed val-best
-python scripts/train_large.py  --subset FD001   # 阶段2：GPT4TS 12 层冻结（seed 42）
-python scripts/train_conf.py   --subset FD001   # 阶段3：α=6/stats（config 自动加载）
-python scripts/evaluate.py     --subset FD001   # 表 II/III + 消融 + 分箱 + FLOPs
-python scripts/plot_results.py                 # 图 3-6（跨数据集一次生成）
-python scripts/plot_summary.py                 # 汇总图
+python scripts/train/train_small.py --subset FD001   # 阶段1：cosine × 多 seed val-best
+python scripts/train/train_large.py --subset FD001   # 阶段2：GPT4TS 12 层冻结（seed 42）
+python scripts/train/train_conf.py  --subset FD001   # 阶段3：α=6/stats（config 自动加载）
+python scripts/assess/evaluate.py   --subset FD001   # 表 II/III + 消融 + 分箱 + FLOPs
+python scripts/plot/plot_results.py                 # 图 3-6（跨数据集一次生成）
+python scripts/plot/plot_summary.py                 # 汇总图
 ```
 
 所有子集差异（SM 层数/LM 层数/α/聚合方式）集中在 `collm/config.py::get_config`，

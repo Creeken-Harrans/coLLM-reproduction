@@ -156,9 +156,9 @@ def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
         # 标准化统计量（当前 norm_mode 下）——供可视化等下游复用，保证与训练一致
         "mu": mu, "sigma": sigma,
     }
-    # 预处理数据落盘（data/processed，供完整流程复用/审计）
+    # 预处理数据落盘（cfg.processed_dir，供完整流程复用/审计；路径统一随配置）
     try:
-        out_dir = Path(__file__).resolve().parents[1] / "data" / "processed"
+        out_dir = Path(cfg.processed_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
             out_dir / f"{subset}_processed.npz",
