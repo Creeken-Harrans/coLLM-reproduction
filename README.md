@@ -95,5 +95,11 @@ python scripts/plot/plot_summary.py                 # 汇总图
   若反思加 LayerNorm 则 C 10.687 全超论文，见 REVISIONS #52）。
 - **训练确定性修复（REVISIONS #51）**：num_workers=0 + cuDNN deterministic，LM 重训
   逐位一致（FD001 13.923×3、FD003 11.425×2）。
+- **测试集覆盖口径（REVISIONS #53，2026-09-28）**：上述 test 数字实际只覆盖
+  **93/100（FD001）、97/100（FD003）**台发动机——周期数 < 50 的测试序列被
+  `max(0, n−49)` 静默丢弃，且**被丢的恰是最健康的一批**（末端 RUL 均值 119/136
+  vs 保留组 72/73；序列长度与末端 RUL 相关 −0.598/−0.484）。补齐（前置填充）实测
+  **不改善**指标、方向随子集反转、量级由填充方式主导，且重训对此是 no-op，故维持
+  论文口径。完整证据与用法见 [docs/SHORT_SEQ_PROTOCOL.md](docs/SHORT_SEQ_PROTOCOL.md)。
 - 图集已按第四轮结果重生成（规范同 REVISIONS #49）；图4 因新 LM 下无 LN 反思 Ql
   饱和高位 → 反思 0 触发而为空（如实展示，见 REVISIONS #52）。

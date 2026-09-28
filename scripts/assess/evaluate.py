@@ -13,6 +13,7 @@ FLOPs 加速比（相对纯 LM）、自反思消融、反思样本正确率、�
 import argparse
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -76,9 +77,18 @@ def main():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--batch", type=int, default=512)
     ap.add_argument("--json", type=str, default=None, help="结果 JSON 输出路径")
+    ap.add_argument("--short-seq", default=None, choices=["drop", "minpad", "percycle"],
+                    help="短测试序列（<window 周期）口径；默认取 config（drop）")
+    ap.add_argument("--short-pad", default=None, choices=["zero", "replicate"],
+                    help="前置填充方式；默认取 config（replicate）")
     args = ap.parse_args()
 
     cfg = get_config(args.subset)
+    # 短序列口径覆盖（REVISIONS #53）；非默认口径的产物自动落到带后缀的文件名
+    if args.short_seq or args.short_pad:
+        cfg.data = replace(cfg.data,
+                           short_seq=args.short_seq or cfg.data.short_seq,
+                           short_pad=args.short_pad or cfg.data.short_pad)
     set_seed(cfg.seed)
     device = args.device if torch.cuda.is_available() else "cpu"
     ckpt_dir = Path(cfg.out_dir) / "checkpoints" / args.subset
@@ -113,6 +123,22 @@ def main():
                "baselines": {"SM": {"RMSE": rmse(ys, yt), "MAE": mae(ys, yt)},
                              "LM": {"RMSE": rmse(yl, yt), "MAE": mae(yl, yt)}},
                "flops": flops, "combos": {}, "ablation": {}}
+
+    # ---- 测试集口径审计（REVISIONS #53）----
+    results["test_set"] = {
+        "short_seq": stats["short_seq"], "short_pad": stats["short_pad"],
+        "engines_total": stats["test_engines"],
+        "engines_evaluated": stats["test_engines_evaluated"],
+        "short_units": stats["short_units"],
+        "dropped_units": stats["dropped_units"],
+        "short_engines": stats["short_engines"],
+    }
+    if stats["dropped_units"]:
+        print(f"[{args.subset}] ⚠️ 测试集丢弃 {len(stats['dropped_units'])} 台短序列发动机 "
+              f"{stats['dropped_units']}（末端 RUL 均值 "
+              f"{sum(e['final_rul'] for e in stats['short_engines']) / max(len(stats['short_engines']), 1):.1f}"
+              f"）→ 实际评估 {stats['test_engines_evaluated']}/{stats['test_engines']} 台；"
+              f"详见 docs/SHORT_SEQ_PROTOCOL.md")
 
     for name, (tau1, tau2) in combos.items():
         yf, sm_exit, need_lm, reflect = combine(ys, yl, qs, ql, yt, tau1, tau2)
@@ -177,7 +203,8 @@ def main():
               + f" | 单调性(负相关=有效) {results['confidence_monotonicity'][name]:+.3f}")
 
     # 保存结果
-    out_path = args.json or Path(cfg.out_dir) / "results" / f"{args.subset}_results.json"
+    suffix = "" if cfg.data.short_seq == "drop" else f"_short-{cfg.data.short_seq}-{cfg.data.short_pad}"
+    out_path = args.json or Path(cfg.out_dir) / "results" / f"{args.subset}_results{suffix}.json"
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(results, indent=1, ensure_ascii=False))

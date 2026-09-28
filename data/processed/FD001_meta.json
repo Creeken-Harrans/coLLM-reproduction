@@ -6,5 +6,77 @@
  "train_units": 80,
  "val_units": 20,
  "test_units": 100,
- "test_engines": 100
+ "test_engines": 100,
+ "short_seq": "drop",
+ "short_pad": "replicate",
+ "test_engines_evaluated": 93,
+ "short_units": [
+  1,
+  2,
+  14,
+  22,
+  25,
+  39,
+  85
+ ],
+ "dropped_units": [
+  1,
+  2,
+  14,
+  22,
+  25,
+  39,
+  85
+ ],
+ "short_engines": [
+  {
+   "unit": 1,
+   "n_cycles": 31,
+   "final_rul": 112.0,
+   "min_pad_steps": 19,
+   "windows_added": 0
+  },
+  {
+   "unit": 2,
+   "n_cycles": 49,
+   "final_rul": 98.0,
+   "min_pad_steps": 1,
+   "windows_added": 0
+  },
+  {
+   "unit": 14,
+   "n_cycles": 46,
+   "final_rul": 107.0,
+   "min_pad_steps": 4,
+   "windows_added": 0
+  },
+  {
+   "unit": 22,
+   "n_cycles": 39,
+   "final_rul": 111.0,
+   "min_pad_steps": 11,
+   "windows_added": 0
+  },
+  {
+   "unit": 25,
+   "n_cycles": 48,
+   "final_rul": 145.0,
+   "min_pad_steps": 2,
+   "windows_added": 0
+  },
+  {
+   "unit": 39,
+   "n_cycles": 37,
+   "final_rul": 142.0,
+   "min_pad_steps": 13,
+   "windows_added": 0
+  },
+  {
+   "unit": 85,
+   "n_cycles": 34,
+   "final_rul": 118.0,
+   "min_pad_steps": 16,
+   "windows_added": 0
+  }
+ ]
 }

@@ -67,6 +67,53 @@ def _build_windows(sens: np.ndarray, blocks, window: int, stride: int):
     return np.stack(xs), np.array(end_cycles), np.array([b[0] for b in blocks for _ in range(max(0, len(b[1]) - window + 1))])
 
 
+def _build_short_windows(sens, blocks, window: int, final_rul_by_unit: dict,
+                         cap, mode: str, pad: str):
+    """周期数 < window 的测试序列：前置填充后纳入评估（REVISIONS #53）。
+
+    论文未规定该情形，'drop' 之外的取值均为新增的可选口径。返回 (x, y, meta)；
+    mode='drop' 时返回空数组。标签与正常窗口同一约定：窗口末端 cycle 的 RUL
+    = RUL_FD00X[unit] + (该 unit 周期数 − 末端 cycle)，再按 cap 截断。
+
+    - mode='minpad'  ：只生成末端一个窗口（填充量 window−n，最小填充）
+    - mode='percycle'：每个 cycle 一个窗口（末端为 c 的窗口填充 window−c）
+    - pad='zero'     ：填 z-score 后的 0（即训练均值）；'replicate'：重复该 unit 首行
+    """
+    if mode not in ("drop", "minpad", "percycle"):
+        raise ValueError(f"未知 short_seq 口径: {mode}")
+    if pad not in ("zero", "replicate"):
+        raise ValueError(f"未知 short_pad 方式: {pad}")
+
+    xs, ys, meta = [], [], []
+    for unit, cyc, slc in blocks:
+        n = len(cyc)
+        if n >= window:
+            continue
+        s = sens[slc]                                  # 已用训练统计量标准化
+        frul = float(final_rul_by_unit[unit])
+        if mode == "drop":
+            # 仍记录明细：审计信息（台数/末端 RUL）与纳入口径无关，必须始终可查
+            meta.append({"unit": int(unit), "n_cycles": n, "final_rul": frul,
+                         "min_pad_steps": window - n, "windows_added": 0})
+            continue
+        ends = [n] if mode == "minpad" else list(range(1, n + 1))
+        for c in ends:
+            p = window - c
+            if pad == "zero":
+                head = np.zeros((p, s.shape[1]), dtype=s.dtype)
+            else:
+                head = np.repeat(s[:1], p, axis=0)
+            xs.append(np.concatenate([head, s[:c]], axis=0))
+            rul = frul + (n - c)
+            ys.append(min(rul, cap) if cap is not None else rul)
+        meta.append({"unit": int(unit), "n_cycles": n, "final_rul": frul,
+                     "min_pad_steps": window - n, "windows_added": len(ends)})
+    if not xs:
+        # drop 口径：无窗口但有审计明细，meta 必须回传
+        return (np.empty((0, window, sens.shape[1])), np.empty((0,)), meta)
+    return np.asarray(xs), np.asarray(ys, dtype=np.float64), meta
+
+
 def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
     """完整预处理 → (train_ds, val_ds, test_ds, stats)。
 
@@ -142,9 +189,25 @@ def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
         tr_y = np.minimum(tr_y, cfg.rul_cap)
         te_y = np.minimum(te_y, cfg.rul_cap)
 
+    # ---- 短测试序列（周期数 < window）纳入评估（REVISIONS #53）----
+    # 'drop'（默认）下 short_x 为空，te_x/te_y 与本改动前逐位一致。
+    te_final_by_unit = {int(u): float(te_final_rul[o]) for u, o in te_unit_order.items()}
+    short_x, short_y, short_meta = _build_short_windows(
+        (te_sens - mu) / sigma, te_blocks, cfg.window, te_final_by_unit,
+        cfg.rul_cap, cfg.short_seq, cfg.short_pad)
+    if len(short_x):
+        te_x = np.concatenate([te_x, short_x], axis=0)
+        te_y = np.concatenate([te_y, short_y], axis=0)
+
     tr_ds = CmapssDataset(tr_x[tr_mask], tr_y[tr_mask])
     val_ds = CmapssDataset(tr_x[val_mask], tr_y[val_mask])
     te_ds = CmapssDataset(te_x, te_y)
+
+    # 评估口径审计（REVISIONS #53）：区分"全部 unit"与"实际贡献窗口的 unit"
+    short_units = {int(b[0]) for b in te_blocks if len(b[1]) < cfg.window}
+    evaluated_units = ({int(b[0]) for b in te_blocks if len(b[1]) >= cfg.window}
+                       | {m["unit"] for m in short_meta if m["windows_added"] > 0})
+    dropped_units = short_units - evaluated_units
 
     stats = {
         "subset": subset,
@@ -152,7 +215,15 @@ def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
         "test_windows": len(te_ds),
         "train_units": int(len(all_units) - n_val), "val_units": int(n_val),
         "test_units": len(te_unit_order),
-        "test_engines": len(te_blocks),
+        "test_engines": len(te_blocks),   # = 全部 unit 数；≠ 实际参与评估的发动机数
+        # ---- 评估口径审计（REVISIONS #53）----
+        # 周期数 < window 的测试序列被 max(0, n-window+1) 丢弃，被丢的恰是健康度最高的
+        # 一批（末端 RUL 均值 119/136 vs 保留的 72/73），故本字段须与指标同看。
+        "short_seq": cfg.short_seq, "short_pad": cfg.short_pad,
+        "test_engines_evaluated": len(evaluated_units),
+        "short_units": sorted(short_units),      # 周期数 < window 的 unit（文件内编号）
+        "dropped_units": sorted(dropped_units),  # 其中本次未纳入评估的
+        "short_engines": short_meta,             # 纳入者明细：unit/周期数/末端RUL/填充量
         # 标准化统计量（当前 norm_mode 下）——供可视化等下游复用，保证与训练一致
         "mu": mu, "sigma": sigma,
     }
@@ -160,15 +231,17 @@ def prepare_cmapss(cfg: DataConfig, subset: str, seed: int = 42):
     try:
         out_dir = Path(cfg.processed_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
+        # 非默认口径写独立文件名，避免覆盖论文口径的权威 npz/meta
+        suffix = "" if cfg.short_seq == "drop" else f"_short-{cfg.short_seq}-{cfg.short_pad}"
         np.savez_compressed(
-            out_dir / f"{subset}_processed.npz",
+            out_dir / f"{subset}_processed{suffix}.npz",
             x_train=tr_x[tr_mask], y_train=tr_y[tr_mask],
             x_val=tr_x[val_mask], y_val=tr_y[val_mask],
             x_test=te_x, y_test=te_y,
             train_unit_ids=tr_w_units[tr_mask], val_unit_ids=tr_w_units[val_mask],
             mu=mu, sigma=sigma,
         )
-        (out_dir / f"{subset}_meta.json").write_text(
+        (out_dir / f"{subset}_meta{suffix}.json").write_text(
             json.dumps({k: (v.tolist() if isinstance(v, np.ndarray) else v)
                         for k, v in stats.items() if k not in ("mu", "sigma")},
                        indent=1, ensure_ascii=False))

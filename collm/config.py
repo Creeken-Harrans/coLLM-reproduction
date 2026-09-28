@@ -26,6 +26,19 @@ class DataConfig:
                               # 仅历史对照（REVISIONS #30 实测 'train' 最优），勿启用
     rul_cap: Optional[float] = 125   # RUL 截断（分段线性；论文指标反推 + 文献 [26] 惯例）
 
+    # ---- 短测试序列（周期数 < window）的处理口径 ----
+    # 论文只规定"窗口 50 / 步长 1"，未交代不足 50 周期的测试序列怎么办。既有实现
+    # 由 max(0, n - window + 1) 静默丢弃：FD001 丢 7 台、FD003 丢 3 台，且被丢的恰是
+    # 健康度最高的发动机（末端 RUL 均值 119/136 vs 保留的 72/73）——测试集因此系统性
+    # 偏向不健康发动机（corr(测试序列长度, 末端 RUL) = -0.60，REVISIONS #53）。
+    #   'drop'     = 丢弃（论文口径下的既有行为；默认值，保证既有结果逐位不变）
+    #   'minpad'   = 前置填充至恰好 window → 每台 1 个末端窗口
+    #   'percycle' = 每个 cycle 一个窗口，按缺失量前置填充（早期 cycle 填充量极大）
+    # 注意：'drop' 之外的口径需要向模型喂训练时从未见过的填充序列（OOD），实测结果
+    # 由填充方式主导而非模型能力（REVISIONS #53），仅供口径审计，勿作为论文对照。
+    short_seq: str = "drop"
+    short_pad: str = "replicate"   # 'zero'（z-score 后 0 = 训练均值）| 'replicate'（重复首行）
+
 
 @dataclass
 class SmallModelConfig:

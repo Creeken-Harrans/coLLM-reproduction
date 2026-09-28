@@ -6,5 +6,41 @@
  "train_units": 80,
  "val_units": 20,
  "test_units": 100,
- "test_engines": 100
+ "test_engines": 100,
+ "short_seq": "drop",
+ "short_pad": "replicate",
+ "test_engines_evaluated": 97,
+ "short_units": [
+  37,
+  52,
+  88
+ ],
+ "dropped_units": [
+  37,
+  52,
+  88
+ ],
+ "short_engines": [
+  {
+   "unit": 37,
+   "n_cycles": 47,
+   "final_rul": 145.0,
+   "min_pad_steps": 3,
+   "windows_added": 0
+  },
+  {
+   "unit": 52,
+   "n_cycles": 38,
+   "final_rul": 120.0,
+   "min_pad_steps": 12,
+   "windows_added": 0
+  },
+  {
+   "unit": 88,
+   "n_cycles": 41,
+   "final_rul": 144.0,
+   "min_pad_steps": 9,
+   "windows_added": 0
+  }
+ ]
 }

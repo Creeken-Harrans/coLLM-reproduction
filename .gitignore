@@ -7,3 +7,5 @@ __pycache__/
 data/raw/*.pdf
 pretrained/
 experiments/results/
+# 短序列变体产物（REVISIONS #53）：派生且可秒级复现，权威记录见 docs/SHORT_SEQ_PROTOCOL.md
+data/processed/*_short-*

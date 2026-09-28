@@ -22,6 +22,7 @@
 
 | 文档 | 内容 |
 |---|---|
+| [SHORT_SEQ_PROTOCOL.md](SHORT_SEQ_PROTOCOL.md) | **测试集短序列口径审计（REVISIONS #53）**：10 台被静默丢弃的发动机、结构性偏差（corr −0.598）、补齐实测（略差且随子集反转）、填充敏感性、重训 no-op 证明 |
 | [SEMANTICS_CHECK.md](SEMANTICS_CHECK.md) | 论文公式 1-17 / 算法 1 逐行 / 图表格 / 实验设置逐条对照实现 |
 | [DATA_FLOW.md](DATA_FLOW.md) | 训练与推理数据流（论文流程 vs 实现逐项对应） |
 | [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | 论文未明确处的设计决策 #1-#26（带终版修订横幅） |
